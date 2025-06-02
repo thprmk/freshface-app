@@ -1,44 +1,28 @@
 'use client';
-import { useState } from 'react';
+import { useState,useEffect } from 'react';
 import BookAppointmentForm from './BookAppointmentForm';
+import axios from 'axios';
 
 export default function AppointmentPage() {
   const [isBookingFormOpen, setIsBookingFormOpen] = useState(false);
+  const [appointments, setAppointments] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
 
-  // Dummy data for demonstration
-  const appointments = [
-    {
-      id: 1,
-      client: {
-        name: 'Emma Wilson',
-        email: 'emma@example.com',
-        avatar: null,
-      },
-      service: 'Haircut & Styling',
-      date: 'May 31, 2025',
-      time: '10:00 AM',
-      duration: '45 min',
-      stylist: 'John Davis',
-      price: 85,
-      status: 'Upcoming',
-    },
-    {
-      id: 2,
-      client: {
-        name: 'Michael Brown',
-        email: 'michael@example.com',
-        avatar: null,
-      },
-      service: 'Hair Coloring',
-      date: 'May 31, 2025',
-      time: '11:30 AM',
-      duration: '90 min',
-      stylist: 'Sarah Johnson',
-      price: 120,
-      status: 'Upcoming',
-    },
-  ];
+
+
+  // Fetch from backend once on mount (and also whenever you want to refresh)
+  useEffect(() => {
+    async function fetchAppointments() {
+      try {
+        const res = await axios.get("/api/appointments")
+        // res.data is an array of your Appointment documents
+        setAppointments(res.data);
+      } catch (err) {
+        console.error('Failed to fetch appointments:', err);
+      }
+    }
+    fetchAppointments();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50/30">
@@ -104,7 +88,7 @@ export default function AppointmentPage() {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm">
+        {/* <div className="bg-white p-6 rounded-xl shadow-sm">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-purple-50 rounded-lg">
               <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -117,7 +101,7 @@ export default function AppointmentPage() {
               <div className="text-sm font-medium text-gray-900">Booking efficiency</div>
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
 
       {/* Appointment List */}
@@ -125,7 +109,7 @@ export default function AppointmentPage() {
         <div className="p-6 border-b border-gray-100">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-4">
-              <button
+              {/* <button
                 onClick={() => setViewMode('list')}
                 className={`px-4 py-2 rounded-lg ${
                   viewMode === 'list'
@@ -134,8 +118,8 @@ export default function AppointmentPage() {
                 }`}
               >
                 List View
-              </button>
-              <button
+              </button> */}
+              {/* <button
                 onClick={() => setViewMode('calendar')}
                 className={`px-4 py-2 rounded-lg ${
                   viewMode === 'calendar'
@@ -144,7 +128,7 @@ export default function AppointmentPage() {
                 }`}
               >
                 Calendar
-              </button>
+              </button> */}
             </div>
             <div className="flex items-center gap-4">
               <div className="relative">
@@ -223,30 +207,37 @@ export default function AppointmentPage() {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-gray-700">
-                        {appointment.client.name[0]}
+                        {appointment.customerName.charAt[0]}
                       </div>
                       <div>
-                        <div className="font-medium text-black">{appointment.client.name}</div>
+                        <div className="font-medium text-black">{appointment.customerName}</div>
                         <div className="text-sm text-gray-700">
-                          {appointment.client.email}
+                          {appointment.email}
                         </div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4">{appointment.service}</td>
+                  <td className="px-6 py-4">{appointment.style}</td>
                   <td className="px-6 py-4">
                     <div>
-                      <div className="text-black">{appointment.date}</div>
+                      <div className="text-black">
+                        {new Date(appointment.data).toLocaleDateString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          year:"numeric",
+
+                        })}
+                        </div>
                       <div className="text-sm text-gray-700">
-                        {appointment.time} ({appointment.duration})
+                        {appointment.time} 
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4">{appointment.stylist}</td>
-                  <td className="px-6 py-4">${appointment.price}</td>
+                  <td className="px-6 py-4">${appointment.TotalPrice || 0}</td>
                   <td className="px-6 py-4">
                     <span className="px-3 py-1 text-sm rounded-full bg-blue-50 text-blue-700">
-                      {appointment.status}
+                      {appointment.status || "Upcoming"}
                     </span>
                   </td>
                   <td className="px-6 py-4">

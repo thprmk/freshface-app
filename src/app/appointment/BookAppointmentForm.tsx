@@ -1,11 +1,15 @@
 'use client';
 import { useState } from 'react';
+import axios from 'axios';
+// If you don’t actually need `format`, you can remove this import until you install date-fns
+// import { format } from 'date-fns';
 
 interface BookAppointmentFormProps {
   onClose: () => void;
 }
 
 export default function BookAppointmentForm({ onClose }: BookAppointmentFormProps) {
+  // 1) Define your form data state first:
   const [formData, setFormData] = useState({
     customerName: '',
     phoneNumber: '',
@@ -18,37 +22,48 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
     products: [] as number[],
   });
 
-  const styles = [
-    'Haircut',
-    'Hair Coloring',
-    'Styling',
-    'Facial',
-    'Manicure',
-    'Pedicure',
-  ];
+  // 2) Then define your single `handleSubmit` (remove any other duplicate):
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-  const stylists = [
-    'Sarah Smith',
-    'John Doe',
-    'Emma Wilson',
-    'Michael Brown',
-  ];
+    try {
+      // Build the payload exactly as your backend expects:
+      const payload = {
+        customerName:  formData.customerName,
+        phoneNumber:   formData.phoneNumber,
+        email:         formData.email,
+        style:         formData.style,
+        stylist:       formData.stylist,
+        date:          formData.date,   // “YYYY-MM-DD” string
+        time:          formData.time,   // e.g. “14:30”
+        paymentMethod: formData.paymentMethod,
+        products:      formData.products, // array of numbers
+      };
 
-  const paymentMethods = ['Cash', 'UPI'];
+      const response = await axios.post("/api/appointments", payload);
 
+      if (response.status === 201) {
+        alert('✅ Appointment booked successfully!');
+        onClose();
+      } else {
+        alert('❌ Something went wrong. Try again.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.error || 'Network error');
+    }
+  };
+
+  // 3) Your other handlers and constants:
+  const styles = [ 'Haircut', 'Hair Coloring', 'Styling', 'Facial', 'Manicure', 'Pedicure' ];
+  const stylists = [ 'Sarah Smith', 'John Doe', 'Emma Wilson', 'Michael Brown' ];
+  const paymentMethods = [ 'Cash', 'UPI' ];
   const products = [
     { id: 1, name: 'Shampoo', price: 299 },
     { id: 2, name: 'Conditioner', price: 249 },
     { id: 3, name: 'Hair Serum', price: 399 },
     { id: 4, name: 'Hair Oil', price: 199 },
   ];
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Handle form submission here
-    console.log(formData);
-    onClose();
-  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -60,10 +75,7 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
       <div className="bg-white rounded-xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-black">Book Appointment</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-700 hover:text-black"
-          >
+          <button onClick={onClose} className="text-gray-700 hover:text-black">
             ✕
           </button>
         </div>
@@ -74,9 +86,7 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
             <h3 className="text-lg font-medium text-black">Customer Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Name
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                 <input
                   type="text"
                   name="customerName"
@@ -87,9 +97,7 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
                 <input
                   type="tel"
                   name="phoneNumber"
@@ -100,9 +108,7 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                 <input
                   type="email"
                   name="email"
@@ -120,9 +126,7 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
             <h3 className="text-lg font-medium text-black">Service Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Service Type
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Service Type</label>
                 <select
                   name="style"
                   value={formData.style}
@@ -139,9 +143,7 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Stylist
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Stylist</label>
                 <select
                   name="stylist"
                   value={formData.stylist}
@@ -165,9 +167,7 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
             <h3 className="text-lg font-medium text-black">Schedule</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Date
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                 <input
                   type="date"
                   name="date"
@@ -178,9 +178,7 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Time
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
                 <input
                   type="time"
                   name="time"
@@ -197,9 +195,7 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
           <div className="space-y-4">
             <h3 className="text-lg font-medium text-black">Payment</h3>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Payment Method
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
               <select
                 name="paymentMethod"
                 value={formData.paymentMethod}
@@ -274,4 +270,4 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
       </div>
     </div>
   );
-} 
+}
