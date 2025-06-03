@@ -43,12 +43,29 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
     { id: 4, name: 'Hair Oil', price: 199 },
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Handle form submission here
-    console.log(formData);
-    onClose();
-  };
+  const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+
+  try {
+    const res = await fetch('/api/appointment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData),
+    });
+
+    if (res.ok) {
+      alert('Appointment booked successfully!');
+      onClose();
+    } else {
+      const data = await res.json();
+      alert(`Failed to book appointment: ${data.error || 'Unknown error'}`);
+    }
+  } catch (error) {
+    console.error(error);
+    alert('An error occurred. Please try again.');
+  }
+};
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
