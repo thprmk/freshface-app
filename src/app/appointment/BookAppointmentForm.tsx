@@ -1,9 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 // If you don’t actually need `format`, you can remove this import until you install date-fns
 // import { format } from 'date-fns';
-
 interface BookAppointmentFormProps {
   onClose: () => void;
 }
@@ -21,6 +20,19 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
     paymentMethod: '',
     products: [] as number[],
   });
+
+  const [styles, setStyles] = useState<{ _id: string; name: string; price: number }[]>([]);
+  useEffect(() => {
+    async function fetchStyles() {
+      try {
+        const res = await axios.get('/api/styles');  // your API endpoint for services
+        setStyles(res.data);                         // set the fetched styles to state
+      } catch (error) {
+        console.error('Failed to fetch styles:', error);
+      }
+    }
+    fetchStyles();
+  }, []);
 
   // 2) Then define your single `handleSubmit` (remove any other duplicate):
   const handleSubmit = async (e: React.FormEvent) => {
@@ -55,7 +67,8 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
   };
 
   // 3) Your other handlers and constants:
-  const styles = [ 'Haircut', 'Hair Coloring', 'Styling', 'Facial', 'Manicure', 'Pedicure' ];
+
+  // const styles = [ 'Haircut', 'Hair Coloring', 'Styling', 'Facial', 'Manicure', 'Pedicure' ];
   const stylists = [ 'Sarah Smith', 'John Doe', 'Emma Wilson', 'Michael Brown' ];
   const paymentMethods = [ 'Cash', 'UPI' ];
   const products = [
@@ -136,8 +149,8 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
                 >
                   <option value="">Select a service</option>
                   {styles.map((style) => (
-                    <option key={style} value={style}>
-                      {style}
+                    <option key={style._id} value={style.name}>
+                      {style.name} - ₹{style.price}
                     </option>
                   ))}
                 </select>
