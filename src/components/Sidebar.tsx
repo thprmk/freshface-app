@@ -1,9 +1,11 @@
 'use client';
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const Sidebar = () => {
   const pathname = usePathname();
+  const [isTransitionMenuOpen, setIsTransitionMenuOpen] = useState(false);  // State to track the submenu toggle
 
   return (
     <div className="w-64 h-screen bg-[#ffff] text-black fixed left-0 top-0">
@@ -36,22 +38,43 @@ const Sidebar = () => {
                 : 'hover:bg-white/5'
             }`}
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-              />
-            </svg>
-            <span>Appointments</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-calendar-fold-icon lucide-calendar-fold"><path d="M8 2v4"/><path d="M16 2v4"/><path d="M21 17V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11Z"/><path d="M3 10h18"/><path d="M15 22v-4a2 2 0 0 1 2-2h4"/></svg>            <span>Appointments</span>
           </Link>
 
+          <div>
+         {/* Transition link with submenu toggle */}
+         <button
+              onClick={() => setIsTransitionMenuOpen(!isTransitionMenuOpen)}  // Toggle submenu on click
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                pathname === '/transition' ? 'bg-white/10' : 'hover:bg-white/5'
+              }`}
+            >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-receipt-icon lucide-receipt"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></svg>
+              <span>Transition</span>
+            </button>
+
+            {/* Conditionally render the submenu */}
+            {isTransitionMenuOpen && (
+              <div className="pl-6 mt-2 space-y-2">
+                <Link
+                  href="/"
+                  className={`block px-4 py-2 rounded-lg transition-colors ${
+                    pathname === '/' ? 'bg-white/10' : 'hover:bg-white/5'
+                  }`}
+                >
+                  Online
+                </Link>
+                <Link
+                  href="/"
+                  className={`block px-4 py-2 rounded-lg transition-colors ${
+                    pathname === '/' ? 'bg-white/10' : 'hover:bg-white/5'
+                  }`}
+                >
+                  Offline
+                </Link>
+              </div>
+            )}
+          </div>
 
           <Link
             href="/stylemanager"
@@ -61,7 +84,7 @@ const Sidebar = () => {
                 : 'hover:bg-white/5'
             }`}
           >
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-user-round-pen-icon lucide-user-round-pen"><path d="M2 21a8 8 0 0 1 10.821-7.487"/><path d="M21.378 16.626a1 1 0 0 0-3.004-3.004l-4.01 4.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/><circle cx="10" cy="8" r="5"/></svg>            <span>Style Manager</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-user-pen-icon lucide-user-pen"><path d="M11.5 15H7a4 4 0 0 0-4 4v2"/><path d="M21.378 16.626a1 1 0 0 0-3.004-3.004l-4.01 4.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/><circle cx="10" cy="7" r="4"/></svg>          <span>Style Manager</span>
           </Link>
         </nav>
       </div>

@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import ServiceManager from '@/app/admin/services/page';
-// import StylistManager from './stylists/page';
-// import ProductManager from './products/page';
+import StylistManager from '@/app/admin/stylistsM/page';
+import ProductManager from '@/app/admin/products/page';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<'services' | 'stylists' | 'products'>('services');
@@ -47,8 +47,8 @@ export default function AdminPage() {
       {/* Content */}
       <main className="flex-1 p-8 bg-[rgb(var(--background-rgb))] dark:bg-white">
        {activeTab === 'services' && <ServiceManager />}
-         {/* {/* {activeTab === 'stylists' && <StylistManager />}
-        {activeTab === 'products' && <ProductManager />}  */}
+       {activeTab === 'stylists' && <StylistManager />} 
+       {activeTab === 'products' && <ProductManager />} 
       </main>
     </div>
   );

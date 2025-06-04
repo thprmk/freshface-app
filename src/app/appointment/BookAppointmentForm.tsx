@@ -19,9 +19,13 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
     time: '',
     paymentMethod: '',
     products: [] as number[],
+    billingMode: 'offline', // Added billingMode state for toggle
   });
 
   const [styles, setStyles] = useState<{ _id: string; name: string; price: number }[]>([]);
+  const [stylists, setStylists] =useState<{_id: string; name: string; experience: string; specialization: string}[]>([]); 
+  const [products, setProducts]= useState<{id: number; name: string; price: number;}[]>([]);
+
   useEffect(() => {
     async function fetchStyles() {
       try {
@@ -32,6 +36,31 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
       }
     }
     fetchStyles();
+  }, []);
+
+  useEffect(() => {
+    async function fetchStylists () {
+      try {
+        const res =await axios.get ('api/stylists'); // API for stylists
+        setStylists(res.data);
+      } catch (error) {
+        console.error('Failed to fetch stylists', error);
+      }
+    }
+    fetchStylists();
+  }, []);
+
+
+  useEffect(() => {
+    async function fetchProducts () {
+      try{
+        const res = await axios.get ('api/products')
+        setProducts(res.data); //store products in state
+    } catch (error) {
+      console.error('Failed to fetch Products', error);
+    }
+  }
+  fetchProducts();
   }, []);
 
   // 2) Then define your single `handleSubmit` (remove any other duplicate):
@@ -50,6 +79,7 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
         time:          formData.time,   // e.g. “14:30”
         paymentMethod: formData.paymentMethod,
         products:      formData.products, // array of numbers
+        billingMode: formData.billingMode, //Added billingMode here
       };
 
       const response = await axios.post("/api/appointments", payload);
@@ -67,16 +97,15 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
   };
 
   // 3) Your other handlers and constants:
-
   // const styles = [ 'Haircut', 'Hair Coloring', 'Styling', 'Facial', 'Manicure', 'Pedicure' ];
-  const stylists = [ 'Sarah Smith', 'John Doe', 'Emma Wilson', 'Michael Brown' ];
+  // const stylists = [ 'Sarah Smith', 'John Doe', 'Emma Wilson', 'Michael Brown' ];
   const paymentMethods = [ 'Cash', 'UPI' ];
-  const products = [
-    { id: 1, name: 'Shampoo', price: 299 },
-    { id: 2, name: 'Conditioner', price: 249 },
-    { id: 3, name: 'Hair Serum', price: 399 },
-    { id: 4, name: 'Hair Oil', price: 199 },
-  ];
+  // const products = [
+  //   { id: 1, name: 'Shampoo', price: 299 },
+  //   { id: 2, name: 'Conditioner', price: 249 },
+  //   { id: 3, name: 'Hair Serum', price: 399 },
+  //   { id: 4, name: 'Hair Oil', price: 199 },
+  // ];
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -166,8 +195,8 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
                 >
                   <option value="">Select a stylist</option>
                   {stylists.map((stylist) => (
-                    <option key={stylist} value={stylist}>
-                      {stylist}
+                    <option key={stylist._id} value={stylist._id}>
+                      {stylist.name} ({stylist.specialization})
                     </option>
                   ))}
                 </select>
@@ -223,6 +252,36 @@ export default function BookAppointmentForm({ onClose }: BookAppointmentFormProp
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          {/* Billing Mode Toggle (Offline/Online) */}
+          <div className='space-y-4'>
+            <h3 className='text-lg font-medium text-black'>Billing Mode</h3>
+            <div className='flex gap-4'>
+              <label>
+                <input
+                  type='radio'
+                  name="billingMode"
+                  value="online"
+                  checked={formData.billingMode === 'online'}
+                  onChange={handleChange}
+                  className="text-black"
+                />
+                Online
+                </label>
+
+                <label>
+                  <input
+                    type="radio"
+                    name="billingMode"
+                    value="offline"
+                    checked={formData.billingMode === 'offline'}
+                    onChange={handleChange}
+                    className='text-black'
+                    />
+                    Offline
+                </label>
             </div>
           </div>
 
