@@ -1,29 +1,97 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
-import BookAppointmentForm from './BookAppointmentForm';
 
-// Define a type for your appointment data structure coming from the DB
-interface AppointmentData {
+import React, { useState, useEffect, useCallback } from 'react';
+import BookAppointmentForm, { NewBookingData } from './BookAppointmentForm';
+import BillingModal from '../appointment/billingmodal'; // Corrected import path
+
+// --- INTERFACES ---
+interface CustomerFromAPI { // Expected structure from GET /api/customer?id=... AND from populated customerId
   _id: string;
-  customerName: string;
-  phoneNumber: string; // <<< THIS WILL BE USED FOR IDENTIFICATION
-  email: string;
-  style: string;
-  stylist: string;
-  date: string; // Expected format: YYYY-MM-DD
-  time: string; // Expected format: HH:MM
-  paymentMethod: string;
-  products: string[];
-  createdAt?: Date;
-  updatedAt?: Date;
+  id: string;
+  name: string;
+  email?: string;
+  phoneNumber?: string;
+  currentMembership?: any; // Define MembershipUIDetails here or import if shared
+  // ... other fields your customer object has
 }
 
+interface AppointmentWithCustomer {
+  _id: string;
+  id: string;
+  customerId: string | CustomerFromAPI; // Can be ID or populated object
+  customer?: CustomerFromAPI;          // If API nests customer under 'customer' key
+  customerName?: string;               // Fallback from original booking
+  style: string;                     // Or 'style'
+  stylist?: string;
+  date: string;                        // ISO string or YYYY-MM-DD
+  time: string;                        // e.g., "HH:MM"
+  notes?: string;
+  status: 'Scheduled' | 'Completed' | 'Cancelled' | 'No-Show' | 'Billed' | 'Paid' | 'InProgress' | string; // Allow for more
+  servicesPerformed?: Array<{ serviceName: string, price: number, serviceId?: string }>;
+  // ... other appointment fields
+}
+
+// --- Helper Functions ---
+const formatDate = (dateString: string | Date | undefined): string => {
+  if (!dateString) return 'N/A';
+  try {
+    const dateObj = new Date(dateString);
+    if (isNaN(dateObj.getTime())) {
+      if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        const parts = dateString.split('-');
+        const utcDate = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
+        if (isNaN(utcDate.getTime())) return "Invalid Date";
+        return utcDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+      }
+      return "Invalid Date";
+    }
+    return dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  } catch (e) { console.error("Error formatting date:", dateString, e); return 'Invalid Date'; }
+};
+
+const formatTime = (timeString: string | undefined): string => {
+  if (!timeString || !/^\d{2}:\d{2}(:\d{2})?$/.test(timeString)) return "N/A"; // Handle undefined
+  try {
+    const [hours, minutes] = timeString.split(':');
+    const h = parseInt(hours, 10);
+    const m = parseInt(minutes, 10);
+    if (isNaN(h) || isNaN(m)) return "Invalid Time";
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const displayHours = h % 12 || 12;
+    return `${String(displayHours).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
+  } catch (e) { console.error("Error formatting time:", timeString, e); return "Invalid Time"; }
+};
+
+// --- StatCard Component ---
+const StatCard: React.FC<{ title: string; value: string; icon: React.ReactNode; }> = ({ title, value, icon }) => (
+  <div className="bg-white p-5 rounded-xl shadow-sm">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm font-medium text-gray-500 truncate">{title}</p>
+        <p className="mt-1 text-3xl font-semibold text-gray-900">{value}</p>
+      </div>
+      <div className="flex-shrink-0 h-12 w-12 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600">
+        {icon}
+      </div>
+    </div>
+  </div>
+);
+
+
+// --- Main Page Component ---
 export default function AppointmentPage() {
-  const [isBookingFormOpen, setIsBookingFormOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
-  const [appointments, setAppointments] = useState<AppointmentData[]>([]);
+  const [allAppointments, setAllAppointments] = useState<AppointmentWithCustomer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const [selectedAppointmentForDetail, setSelectedAppointmentForDetail] = useState<AppointmentWithCustomer | null>(null);
+  const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
+  const [isBookAppointmentModalOpen, setIsBookAppointmentModalOpen] = useState(false);
+
+  const [isBillingModalOpen, setIsBillingModalOpen] = useState(false);
+  const [selectedAppointmentForBilling, setSelectedAppointmentForBilling] = useState<AppointmentWithCustomer | null>(null);
+  const [customerForBilling, setCustomerForBilling] = useState<CustomerFromAPI | null>(null);
 
   const fetchAppointments = useCallback(async () => {
     setIsLoading(true);
@@ -31,306 +99,151 @@ export default function AppointmentPage() {
     try {
       const res = await fetch('/api/appointment');
       if (!res.ok) {
-        let errorMessage = `API Error: ${res.status} ${res.statusText}`;
-        try {
-          const errorData = await res.json();
-          if (errorData && errorData.message) {
-            errorMessage = errorData.message;
-          }
-        } catch (jsonError) {
-          const textError = await res.text();
-          console.error("Non-JSON error response when fetching appointments:", textError);
-          errorMessage = textError || errorMessage;
-        }
-        throw new Error(errorMessage);
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || `API Error: ${res.status}`);
       }
       const data = await res.json();
-      if (data.success) {
-        setAppointments(data.appointments || []);
+      if (data.success && Array.isArray(data.appointments)) {
+        setAllAppointments(data.appointments.map((apt: any) => ({
+          ...apt,
+          id: apt._id,
+          customer: (typeof apt.customerId === 'object' && apt.customerId !== null) ? { ...apt.customerId, id: apt.customerId._id } : (typeof apt.customer === 'object' && apt.customer !== null) ? { ...apt.customer, id: apt.customer._id } : null,
+          customerId: (typeof apt.customerId === 'string') ? apt.customerId : (apt.customerId?._id || (apt.customer?._id || undefined)),
+        })));
       } else {
-        throw new Error(data.message || 'Failed to fetch appointments from server');
+        throw new Error(data.message || 'Failed to parse appointments');
       }
-    } catch (err) {
-      console.error("Error in fetchAppointments:", err);
-      setError(err instanceof Error ? err.message : 'An unknown error occurred while fetching appointments');
-      setAppointments([]);
+    } catch (err: any) {
+      setError(err.message);
+      setAllAppointments([]);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchAppointments();
-  }, [fetchAppointments]);
+  useEffect(() => { fetchAppointments(); }, [fetchAppointments]);
 
-  const handleBookingFormClose = () => {
-    setIsBookingFormOpen(false);
-    fetchAppointments();
+  const handleOpenBillingModal = async (appointment: AppointmentWithCustomer) => {
+    setSelectedAppointmentForBilling(appointment);
+    let custDetails: CustomerFromAPI | null = null;
+    if (appointment.customer && typeof appointment.customer === 'object' && appointment.customer._id) {
+      custDetails = appointment.customer as CustomerFromAPI;
+    } else if (typeof appointment.customerId === 'object' && appointment.customerId !== null && appointment.customerId._id) {
+      custDetails = appointment.customerId as CustomerFromAPI;
+    } else if (typeof appointment.customerId === 'string') {
+      try {
+        const custRes = await fetch(`/api/customer/${appointment.customerId}`);
+        if (!custRes.ok) { throw new Error(`Failed to fetch customer (${custRes.status})`); }
+        const custData = await custRes.json();
+        if (custData.success && custData.customer) { custDetails = custData.customer; } 
+        else { throw new Error(custData.message || "Could not parse customer details."); }
+      } catch (e: any) { setError("Could not load customer details for billing: " + e.message); return; }
+    }
+    if (custDetails) { setCustomerForBilling(custDetails); setIsBillingModalOpen(true); } 
+    else { setError(`Customer details not found for appointment ${appointment.id}.`); }
   };
 
-  const formatDateTime = (isoDate: string, time: string) => {
+  const handleCloseBillingModal = () => { setIsBillingModalOpen(false); setSelectedAppointmentForBilling(null); setCustomerForBilling(null); fetchAppointments(); };
+  const handleBookingFormClose = () => { setIsBookAppointmentModalOpen(false); };
+  
+  const handleBookNewAppointment = async (bookingData: NewBookingData) => {
+    setIsLoading(true); setError(null);
     try {
-      const [year, month, day] = isoDate.split('-').map(Number);
-      const dateObj = new Date(Date.UTC(year, month - 1, day));
-      const formattedDate = dateObj.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        timeZone: 'UTC',
-      });
-      let formattedTime = time;
-      if (/^\d{2}:\d{2}$/.test(time)) {
-        const [hours, minutes] = time.split(':');
-        const h = parseInt(hours, 10);
-        const ampm = h >= 12 ? 'PM' : 'AM';
-        const displayHours = h % 12 || 12;
-        formattedTime = `${displayHours}:${minutes} ${ampm}`;
-      }
-      return { date: formattedDate, time: formattedTime };
-    } catch (e) {
-      console.error("Error formatting date/time:", isoDate, time, e);
-      return { date: "Invalid Date", time: "Invalid Time" };
-    }
+      const response = await fetch('/api/appointment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bookingData), });
+      const result = await response.json();
+      if (!response.ok || !result.success || !result.appointment) { throw new Error(result.message || 'Failed to book appointment.'); }
+      alert('Appointment successfully booked!');
+      setIsBookAppointmentModalOpen(false);
+      const newApiAppointment = result.appointment;
+      const customerDataForModal = (typeof newApiAppointment.customerId === 'object' && newApiAppointment.customerId !== null) ? { ...newApiAppointment.customerId, id: newApiAppointment.customerId._id } : null;
+      const newAppointmentForModal: AppointmentWithCustomer = { ...newApiAppointment, id: newApiAppointment._id, customer: customerDataForModal, customerId: customerDataForModal?._id || newApiAppointment.customerId, };
+      if (!newAppointmentForModal.customer && typeof newAppointmentForModal.customerId === 'object') { newAppointmentForModal.customer = newAppointmentForModal.customerId as CustomerFromAPI; }
+      handleOpenBillingModal(newAppointmentForModal);
+    } catch (err: any) { setError(err.message); } 
+    finally { setIsLoading(false); }
   };
 
-  let todaysTotalAppointments = 0;
-  let uniqueCustomerChangeText = "Loading...";
+  const handleViewAppointmentDetails = (appointment: AppointmentWithCustomer) => { setSelectedAppointmentForDetail(appointment); setIsDetailPanelOpen(true); };
+  const closeDetailPanel = () => { setIsDetailPanelOpen(false); setSelectedAppointmentForDetail(null); };
 
-  if (!isLoading && appointments) {
-    const today = new Date();
-    const todayFormatted = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-    const yesterdayFormatted = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+  const filteredAppointments = allAppointments.filter(apt => {
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    if (!searchTerm.trim()) return true;
+    const customerName = apt.customerName || apt.customer?.name || (typeof apt.customerId === 'object' ? (apt.customerId as CustomerFromAPI).name : '');
+    return (customerName && customerName.toLowerCase().includes(lowerSearchTerm)) ||
+           (apt.style && apt.style.toLowerCase().includes(lowerSearchTerm)) ||
+           (apt.stylist && apt.stylist.toLowerCase().includes(lowerSearchTerm));
+  });
 
-    const todaysApptsArray = appointments.filter(apt => apt.date === todayFormatted);
-    const yesterdaysApptsArray = appointments.filter(apt => apt.date === yesterdayFormatted);
-    todaysTotalAppointments = todaysApptsArray.length;
+  // ===> LOGIC TO CHECK IF THE ACTIONS COLUMN SHOULD BE VISIBLE <===
+  const hasActionableAppointments = filteredAppointments.some(apt =>
+    apt.status === 'Scheduled' || apt.status === 'Completed' || apt.status === 'InProgress'
+  );
 
-    // --- Logic for Unique Customer Count Change Text (USING PHONE NUMBER) ---
-    const todaysUniqueCustomerPhoneNumbers = new Set(
-      todaysApptsArray.map(apt => apt.phoneNumber).filter(Boolean) // CHANGED
-    );
-    const yesterdaysUniqueCustomerPhoneNumbers = new Set(
-      yesterdaysApptsArray.map(apt => apt.phoneNumber).filter(Boolean) // CHANGED
-    );
-
-    const todaysUniqueCustomerCount = todaysUniqueCustomerPhoneNumbers.size;
-    const yesterdaysUniqueCustomerCount = yesterdaysUniqueCustomerPhoneNumbers.size;
-
-    if (todaysApptsArray.length === 0 && yesterdaysApptsArray.length === 0) {
-      uniqueCustomerChangeText = "No customer activity";
-    } else if (yesterdaysUniqueCustomerCount > 0) {
-      const diff = todaysUniqueCustomerCount - yesterdaysUniqueCustomerCount;
-      if (diff > 0) {
-        uniqueCustomerChangeText = `+${diff} customer(s) from yesterday`;
-      } else if (diff < 0) {
-        uniqueCustomerChangeText = `${diff} customer(s) from yesterday`;
-      } else {
-        uniqueCustomerChangeText = "Same # of customers as yesterday";
-      }
-    } else if (todaysUniqueCustomerCount > 0) {
-      uniqueCustomerChangeText = `+${todaysUniqueCustomerCount} customer(s) (0 yesterday)`;
-    } else {
-      uniqueCustomerChangeText = "No customers today";
-    }
-  } else if (!isLoading && !appointments) {
-    uniqueCustomerChangeText = "Data unavailable";
-    todaysTotalAppointments = 0;
-  }
-
-  const todaysRevenueDisplay = isLoading ? '...' : '$0';
-  const upcomingAppointmentsDisplay = isLoading || !appointments
-    ? '...'
-    : appointments.filter(apt => {
-        try {
-          const todayDateOnly = new Date(new Date().setHours(0,0,0,0));
-          const [year, month, day] = apt.date.split('-').map(Number);
-          const aptDateObj = new Date(Date.UTC(year, month - 1, day));
-          return aptDateObj >= todayDateOnly;
-        } catch { return false; }
-      }).length;
-  const utilizationDisplay = isLoading ? '...' : '0%';
+  const todaysDate = new Date().toISOString().split('T')[0];
+  const todaysAppointmentsCount = allAppointments.filter(apt => apt.date && apt.date.startsWith(todaysDate)).length;
+  const upcomingAppointmentsCount = allAppointments.filter(apt => apt.date && new Date(apt.date) >= new Date(todaysDate) && apt.status === 'Scheduled').length;
 
   return (
     <div className="min-h-screen bg-gray-50/30 p-4 md:p-8">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-black mb-2">Appointments</h1>
-          <p className="text-gray-700">Manage your salon's appointment schedule</p>
-        </div>
-        <button
-          onClick={() => setIsBookingFormOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-black/90"
-        >
-          <span>+</span>
-          <span>Book Appointment</span>
-        </button>
+      <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
+        <div><h1 className="text-3xl font-bold text-black mb-1">Appointments</h1><p className="text-gray-600 text-sm sm:text-base">Manage your salon's appointment schedule.</p></div>
+        <button onClick={() => setIsBookAppointmentModalOpen(true)} className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-black text-white rounded-lg hover:bg-black/90 transition-colors"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd"></path></svg><span>Book Appointment</span></button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {/* Card 1: Today's Appointments */}
-        <div className="bg-white p-6 rounded-xl shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-gray-100 rounded-lg">
-              <svg className="w-6 h-6 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-gray-900">Today's Appointments</div>
-              <div className="text-2xl font-bold text-black">
-                {isLoading ? '...' : todaysTotalAppointments}
-              </div>
-              <div className={`text-sm font-medium mt-1 ${
-                isLoading ? 'text-gray-500' :
-                uniqueCustomerChangeText.startsWith('+') ? 'text-green-600' :
-                uniqueCustomerChangeText.startsWith('-') ? 'text-red-600' :
-                'text-gray-500'
-              }`}>
-                {isLoading ? '...' : uniqueCustomerChangeText}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 2: Today's Revenue */}
-        <div className="bg-white p-6 rounded-xl shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-green-50 rounded-lg">
-               <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-gray-900">Today's Revenue</div>
-              <div className="text-2xl font-bold text-black">{todaysRevenueDisplay}</div>
-              <div className="text-sm font-medium text-gray-900">Calculation needed</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 3: Upcoming Appointments */}
-        <div className="bg-white p-6 rounded-xl shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-yellow-50 rounded-lg">
-              <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-gray-900">Upcoming</div>
-              <div className="text-2xl font-bold text-black">{upcomingAppointmentsDisplay}</div>
-              <div className="text-sm font-medium text-gray-900">Today & future</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 4: Utilization */}
-        <div className="bg-white p-6 rounded-xl shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-purple-50 rounded-lg">
-              <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-gray-900">Utilization</div>
-              <div className="text-2xl font-bold text-black">{utilizationDisplay}</div>
-              <div className="text-sm font-medium text-gray-900">Detailed logic TBD</div>
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <StatCard title="Today's Bookings" value={isLoading && !allAppointments.length ? "..." : todaysAppointmentsCount.toString()} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>} />
+        <StatCard title="Upcoming (Scheduled)" value={isLoading && !allAppointments.length ? "..." : upcomingAppointmentsCount.toString()} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
+        <StatCard title="Total Appointments" value={isLoading && !allAppointments.length ? "..." : allAppointments.length.toString()} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>} />
       </div>
 
-      {/* Appointment List Table & Modal */}
-      <div className="bg-white rounded-xl shadow-sm">
-        <div className="p-6 border-b border-gray-100">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setViewMode('list')}
-                className={`px-4 py-2 rounded-lg ${
-                  viewMode === 'list'
-                    ? 'bg-gray-100 text-black'
-                    : 'text-gray-700 hover:text-black'
-                }`}
-              >
-                List View
-              </button>
-              <button
-                onClick={() => setViewMode('calendar')}
-                className={`px-4 py-2 rounded-lg ${
-                  viewMode === 'calendar'
-                    ? 'bg-gray-100 text-black'
-                    : 'text-gray-700 hover:text-black'
-                }`}
-              >
-                Calendar (Not Implemented)
-              </button>
-            </div>
-            <div className="flex items-center gap-4"> {/* Placeholder for search/filter */} </div>
-          </div>
-        </div>
+       <div className="mb-6 bg-white p-4 rounded-xl shadow-sm"><input type="text" placeholder="Search appointments (client, service, stylist...)" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/10"/></div>
 
-        {isLoading && <div className="p-6 text-center text-gray-700">Loading appointments...</div>}
-        {error && <div className="p-6 text-center text-red-600">Error: {error}</div>}
-
-        {!isLoading && !error && appointments.length === 0 && (
-          <div className="p-6 text-center text-gray-700">No appointments found. Book one!</div>
-        )}
-
-        {!isLoading && !error && appointments.length > 0 && viewMode === 'list' && (
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        {isLoading && allAppointments.length === 0 && <div className="p-10 text-center text-gray-600">Loading appointments...</div>}
+        {error && <div className="p-10 text-center text-red-600">Error: {error} <button onClick={fetchAppointments} className="text-blue-600 underline ml-2">Try again</button></div>}
+        {!isLoading && !error && filteredAppointments.length === 0 && (<div className="p-10 text-center text-gray-600">{searchTerm ? "No appointments match your search." : "No appointments found. Book one!"}</div>)}
+        {!isLoading && !error && filteredAppointments.length > 0 && (
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-700">Client</th>
-                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-700">Service</th>
-                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-700">Date & Time</th>
-                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-700">Stylist</th>
-                  <th className="text-left px-6 py-4 text-sm font-medium text-gray-700">Status</th>
-                  <th className="px-6 py-4"></th>
+            <table className="w-full text-sm text-left text-gray-700">
+              <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+                <tr>
+                  <th scope="col" className="px-6 py-3">Client</th>
+                  <th scope="col" className="px-6 py-3">Service</th>
+                  <th scope="col" className="px-6 py-3">Date & Time</th>
+                  <th scope="col" className="px-6 py-3">Stylist</th>
+                  <th scope="col" className="px-6 py-3">Status</th>
+                  
+                  {/* === MODIFIED: ACTIONS HEADER IS NOW CONDITIONAL === */}
+                  {hasActionableAppointments && (
+                    <th scope="col" className="px-6 py-3 text-right">Actions</th>
+                  )}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
-                {appointments.map((appointment) => {
-                  const { date: displayDate, time: displayTime } = formatDateTime(appointment.date, appointment.time);
+              <tbody>
+                {filteredAppointments.map((appointment) => {
+                  const customerName = appointment.customerName || appointment.customer?.name || 'N/A';
+                  const customerPhone = appointment.customer?.phoneNumber || 'N/A';
                   return (
-                    <tr key={appointment._id} className="text-black hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-700 uppercase">
-                            {appointment.customerName ? appointment.customerName[0] : 'N'}
-                          </div>
-                          <div>
-                            <div className="font-medium text-black">{appointment.customerName}</div>
-                            <div className="text-sm text-gray-700">{appointment.phoneNumber}</div>
-                          </div>
-                        </div>
-                      </td>
+                    <tr key={appointment.id} className="bg-white border-b hover:bg-gray-50">
+                      <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">{customerName}<div className="text-xs text-gray-500">{customerPhone}</div></td>
                       <td className="px-6 py-4">{appointment.style}</td>
-                      <td className="px-6 py-4">
-                        <div>
-                          <div className="text-black">{displayDate}</div>
-                          <div className="text-sm text-gray-700">{displayTime}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">{appointment.stylist}</td>
-                      <td className="px-6 py-4">
-                        <span className="px-3 py-1 text-sm rounded-full bg-blue-50 text-blue-700">
-                          Upcoming
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button className="p-1 hover:bg-gray-100 rounded">
-                          <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 14a2 2 0 100-4 2 2 0 000 4zm-6 0a2 2 0 100-4 2 2 0 000 4zm12 0a2 2 0 100-4 2 2 0 000 4z" />
-                          </svg>
-                        </button>
-                      </td>
+                      <td className="px-6 py-4">{appointment.date ? formatDate(appointment.date) : 'N/A'} at {formatTime(appointment.time)}</td>
+                      <td className="px-6 py-4">{appointment.stylist || 'N/A'}</td>
+                      <td className="px-6 py-4"><span className={`px-2 py-1 text-md font-medium rounded-full ${ appointment.status === 'Scheduled' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800' }`}>{appointment.status}</span></td>
+                      
+                      {/* === MODIFIED: ACTIONS CELL IS NOW CONDITIONAL === */}
+                      {hasActionableAppointments && (
+                        <td className="px-6 py-4 text-right space-x-2">
+                          {/* <button onClick={() => handleViewAppointmentDetails(appointment)} className="font-medium text-gray-600 hover:text-black text-xs">Details</button> */}
+                          {(appointment.status === 'Scheduled' || appointment.status === 'Completed' || appointment.status === 'InProgress') ? (
+                             <button onClick={() => handleOpenBillingModal(appointment)} className="font-medium text-indigo-600 hover:text-indigo-800 text-md px-2 py-1 bg-indigo-50 hover:bg-indigo-100 rounded">Bill</button>
+                          ) : (
+                            // Render a placeholder to maintain alignment if you want, otherwise null is fine.
+                            <span className="inline-block w-12"></span> 
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -338,15 +251,39 @@ export default function AppointmentPage() {
             </table>
           </div>
         )}
-        {viewMode === 'calendar' && (
-          <div className="p-6 text-center text-gray-700">
-            Calendar View - Implementation Pending.
-          </div>
-        )}
       </div>
-      {isBookingFormOpen && (
-        <BookAppointmentForm onClose={handleBookingFormClose} />
+
+      {isDetailPanelOpen && selectedAppointmentForDetail && (
+        <div className={`fixed top-0 right-0 h-full bg-white shadow-2xl z-40 w-full md:w-[400px] lg:w-[450px] ${isDetailPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+            <div className="p-6"><button onClick={closeDetailPanel}>Close Detail</button><pre>{JSON.stringify(selectedAppointmentForDetail, null, 2)}</pre></div>
+        </div>
       )}
+      {isDetailPanelOpen && ( <div onClick={closeDetailPanel} className="fixed inset-0 bg-black/30 z-30 md:hidden"></div> )}
+
+      <BookAppointmentForm isOpen={isBookAppointmentModalOpen} onClose={handleBookingFormClose} onBookAppointment={handleBookNewAppointment} />
+      {selectedAppointmentForBilling && customerForBilling && isBillingModalOpen && (<BillingModal isOpen={isBillingModalOpen} onClose={handleCloseBillingModal} appointment={selectedAppointmentForBilling} customer={customerForBilling} />)}
     </div>
   );
 }
+
+// StatCard component
+interface StatCardProps {
+  title: string;
+  value: string;
+  icon: React.ReactNode;
+  trend?: string;
+  trendColor?: string;
+}
+// const StatCard: React.FC<StatCardProps> = ({ title, value, icon }) => (
+//   <div className="bg-white p-5 rounded-xl shadow-sm">
+//     <div className="flex items-center justify-between">
+//       <div>
+//         <p className="text-sm font-medium text-gray-500 truncate">{title}</p>
+//         <p className="mt-1 text-3xl font-semibold text-gray-900">{value}</p>
+//       </div>
+//       <div className="flex-shrink-0 h-12 w-12 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600">
+//         {icon}
+//       </div>
+//     </div>
+//   </div>
+// );

@@ -1,15 +1,26 @@
+// models/appointment.ts
 import mongoose from 'mongoose';
 
 const appointmentSchema = new mongoose.Schema({
-  customerName: { type: String, required: true },
-  phoneNumber: { type: String, required: true ,unique: true },
-  email: { type: String, required: true },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true },
   style: { type: String, required: true },
   stylist: { type: String, required: true },
-  date: { type: String, required: true },   // You might consider Date type here, but string works too
+
+  date: { type: Date, required: true },
   time: { type: String, required: true },
-  paymentMethod: { type: String, required: true },
-  products: [{ type: String }], // or [mongoose.Schema.Types.ObjectId] if referencing another collection
+  notes: { type: String },
+  status: {
+    type: String,
+    enum: ['Scheduled', 'Completed', 'Cancelled', 'No-Show', 'InProgress', 'Billed', 'Paid'],
+    default: 'Scheduled'
+  },
+  invoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', index: true, sparse: true },
 }, { timestamps: true });
+
+// ===> ADD THIS COMPOUND INDEX <===
+// This index is crucial for the performance of your API.
+// It allows MongoDB to quickly find all appointments for a customer
+// AND retrieve them already sorted by date and time.
+appointmentSchema.index({ customerId: 1, date: -1, time: -1 });
 
 export default mongoose.models.Appointment || mongoose.model('Appointment', appointmentSchema);
