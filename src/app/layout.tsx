@@ -1,13 +1,10 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
-import Sidebar from "@/components/Sidebar";
+// app/layout.tsx
+import './globals.css';
+import { Providers } from './providers';
 
-const inter = Inter({ subsets: ["latin"] });
-
-export const metadata: Metadata = {
-  title: "ff project",
-  description: "Modern salon management system",
+export const metadata = {
+  title: 'Fresh Face Salon',
+  description: 'Salon Management System',
 };
 
 export default function RootLayout({
@@ -17,11 +14,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-gray-50`}>
-        <Sidebar />
-        <main className="ml-64 p-8">
+      <body>
+        <Providers>
           {children}
-        </main>
+        </Providers>
       </body>
     </html>
   );

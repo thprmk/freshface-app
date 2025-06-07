@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import BookAppointmentForm, { NewBookingData } from './BookAppointmentForm';
-import BillingModal from '../appointment/billingmodal'; // Corrected import path
+import BillingModal from './billingmodal'; // Corrected import path
 
 // --- INTERFACES ---
 interface CustomerFromAPI { // Expected structure from GET /api/customer?id=... AND from populated customerId
@@ -135,17 +135,17 @@ export default function AppointmentPage() {
         const custRes = await fetch(`/api/customer/${appointment.customerId}`);
         if (!custRes.ok) { throw new Error(`Failed to fetch customer (${custRes.status})`); }
         const custData = await custRes.json();
-        if (custData.success && custData.customer) { custDetails = custData.customer; } 
+        if (custData.success && custData.customer) { custDetails = custData.customer; }
         else { throw new Error(custData.message || "Could not parse customer details."); }
       } catch (e: any) { setError("Could not load customer details for billing: " + e.message); return; }
     }
-    if (custDetails) { setCustomerForBilling(custDetails); setIsBillingModalOpen(true); } 
+    if (custDetails) { setCustomerForBilling(custDetails); setIsBillingModalOpen(true); }
     else { setError(`Customer details not found for appointment ${appointment.id}.`); }
   };
 
   const handleCloseBillingModal = () => { setIsBillingModalOpen(false); setSelectedAppointmentForBilling(null); setCustomerForBilling(null); fetchAppointments(); };
   const handleBookingFormClose = () => { setIsBookAppointmentModalOpen(false); };
-  
+
   const handleBookNewAppointment = async (bookingData: NewBookingData) => {
     setIsLoading(true); setError(null);
     try {
@@ -159,7 +159,7 @@ export default function AppointmentPage() {
       const newAppointmentForModal: AppointmentWithCustomer = { ...newApiAppointment, id: newApiAppointment._id, customer: customerDataForModal, customerId: customerDataForModal?._id || newApiAppointment.customerId, };
       if (!newAppointmentForModal.customer && typeof newAppointmentForModal.customerId === 'object') { newAppointmentForModal.customer = newAppointmentForModal.customerId as CustomerFromAPI; }
       handleOpenBillingModal(newAppointmentForModal);
-    } catch (err: any) { setError(err.message); } 
+    } catch (err: any) { setError(err.message); }
     finally { setIsLoading(false); }
   };
 
@@ -171,8 +171,8 @@ export default function AppointmentPage() {
     if (!searchTerm.trim()) return true;
     const customerName = apt.customerName || apt.customer?.name || (typeof apt.customerId === 'object' ? (apt.customerId as CustomerFromAPI).name : '');
     return (customerName && customerName.toLowerCase().includes(lowerSearchTerm)) ||
-           (apt.style && apt.style.toLowerCase().includes(lowerSearchTerm)) ||
-           (apt.stylist && apt.stylist.toLowerCase().includes(lowerSearchTerm));
+      (apt.style && apt.style.toLowerCase().includes(lowerSearchTerm)) ||
+      (apt.stylist && apt.stylist.toLowerCase().includes(lowerSearchTerm));
   });
 
   // ===> LOGIC TO CHECK IF THE ACTIONS COLUMN SHOULD BE VISIBLE <===
@@ -185,6 +185,7 @@ export default function AppointmentPage() {
   const upcomingAppointmentsCount = allAppointments.filter(apt => apt.date && new Date(apt.date) >= new Date(todaysDate) && apt.status === 'Scheduled').length;
 
   return (
+
     <div className="min-h-screen bg-gray-50/30 p-4 md:p-8">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
         <div><h1 className="text-3xl font-bold text-black mb-1">Appointments</h1><p className="text-gray-600 text-sm sm:text-base">Manage your salon's appointment schedule.</p></div>
@@ -197,7 +198,7 @@ export default function AppointmentPage() {
         <StatCard title="Total Appointments" value={isLoading && !allAppointments.length ? "..." : allAppointments.length.toString()} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>} />
       </div>
 
-       <div className="mb-6 bg-white p-4 rounded-xl shadow-sm"><input type="text" placeholder="Search appointments (client, service, stylist...)" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/10"/></div>
+      <div className="mb-6 bg-white p-4 rounded-xl shadow-sm"><input type="text" placeholder="Search appointments (client, service, stylist...)" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/10" /></div>
 
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
         {isLoading && allAppointments.length === 0 && <div className="p-10 text-center text-gray-600">Loading appointments...</div>}
@@ -213,7 +214,7 @@ export default function AppointmentPage() {
                   <th scope="col" className="px-6 py-3">Date & Time</th>
                   <th scope="col" className="px-6 py-3">Stylist</th>
                   <th scope="col" className="px-6 py-3">Status</th>
-                  
+
                   {/* === MODIFIED: ACTIONS HEADER IS NOW CONDITIONAL === */}
                   {hasActionableAppointments && (
                     <th scope="col" className="px-6 py-3 text-right">Actions</th>
@@ -230,17 +231,17 @@ export default function AppointmentPage() {
                       <td className="px-6 py-4">{appointment.style}</td>
                       <td className="px-6 py-4">{appointment.date ? formatDate(appointment.date) : 'N/A'} at {formatTime(appointment.time)}</td>
                       <td className="px-6 py-4">{appointment.stylist || 'N/A'}</td>
-                      <td className="px-6 py-4"><span className={`px-2 py-1 text-md font-medium rounded-full ${ appointment.status === 'Scheduled' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800' }`}>{appointment.status}</span></td>
-                      
+                      <td className="px-6 py-4"><span className={`px-2 py-1 text-md font-medium rounded-full ${appointment.status === 'Scheduled' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>{appointment.status}</span></td>
+
                       {/* === MODIFIED: ACTIONS CELL IS NOW CONDITIONAL === */}
                       {hasActionableAppointments && (
                         <td className="px-6 py-4 text-right space-x-2">
                           {/* <button onClick={() => handleViewAppointmentDetails(appointment)} className="font-medium text-gray-600 hover:text-black text-xs">Details</button> */}
                           {(appointment.status === 'Scheduled' || appointment.status === 'Completed' || appointment.status === 'InProgress') ? (
-                             <button onClick={() => handleOpenBillingModal(appointment)} className="font-medium text-indigo-600 hover:text-indigo-800 text-md px-2 py-1 bg-indigo-50 hover:bg-indigo-100 rounded">Bill</button>
+                            <button onClick={() => handleOpenBillingModal(appointment)} className="font-medium text-indigo-600 hover:text-indigo-800 text-md px-2 py-1 bg-indigo-50 hover:bg-indigo-100 rounded">Bill</button>
                           ) : (
                             // Render a placeholder to maintain alignment if you want, otherwise null is fine.
-                            <span className="inline-block w-12"></span> 
+                            <span className="inline-block w-12"></span>
                           )}
                         </td>
                       )}
@@ -255,14 +256,15 @@ export default function AppointmentPage() {
 
       {isDetailPanelOpen && selectedAppointmentForDetail && (
         <div className={`fixed top-0 right-0 h-full bg-white shadow-2xl z-40 w-full md:w-[400px] lg:w-[450px] ${isDetailPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-            <div className="p-6"><button onClick={closeDetailPanel}>Close Detail</button><pre>{JSON.stringify(selectedAppointmentForDetail, null, 2)}</pre></div>
+          <div className="p-6"><button onClick={closeDetailPanel}>Close Detail</button><pre>{JSON.stringify(selectedAppointmentForDetail, null, 2)}</pre></div>
         </div>
       )}
-      {isDetailPanelOpen && ( <div onClick={closeDetailPanel} className="fixed inset-0 bg-black/30 z-30 md:hidden"></div> )}
+      {isDetailPanelOpen && (<div onClick={closeDetailPanel} className="fixed inset-0 bg-black/30 z-30 md:hidden"></div>)}
 
       <BookAppointmentForm isOpen={isBookAppointmentModalOpen} onClose={handleBookingFormClose} onBookAppointment={handleBookNewAppointment} />
       {selectedAppointmentForBilling && customerForBilling && isBillingModalOpen && (<BillingModal isOpen={isBillingModalOpen} onClose={handleCloseBillingModal} appointment={selectedAppointmentForBilling} customer={customerForBilling} />)}
     </div>
+
   );
 }
 
