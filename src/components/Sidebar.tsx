@@ -1,4 +1,3 @@
-// components/Sidebar.tsx
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -11,7 +10,9 @@ import {
   CreditCardIcon,
   UsersIcon,
   CogIcon,
-  PowerIcon
+  PowerIcon,
+  LightBulbIcon,
+  DocumentTextIcon
 } from '@heroicons/react/24/outline';
 
 const Sidebar = () => {
@@ -23,12 +24,14 @@ const Sidebar = () => {
   };
 
   // Check permissions for navigation items
-    const canAccessDashboard = session && hasPermission(session.user.role.permissions, PERMISSIONS.DASHBOARD_READ);
+  const canAccessDashboard = session && hasPermission(session.user.role.permissions, PERMISSIONS.DASHBOARD_READ);
   const canAccessCustomers = session && hasPermission(session.user.role.permissions, PERMISSIONS.CUSTOMERS_READ);
   const canAccessAppointments = session && hasPermission(session.user.role.permissions, PERMISSIONS.APPOINTMENTS_READ);
   const canAccessBilling = session && hasPermission(session.user.role.permissions, PERMISSIONS.BILLING_READ);
   const canAccessUsers = session && hasPermission(session.user.role.permissions, PERMISSIONS.USERS_READ);
   const canAccessRoles = session && hasPermission(session.user.role.permissions, PERMISSIONS.ROLES_READ);
+  const canAccessEBUpload = session && hasPermission(session.user.role.permissions, PERMISSIONS.EB_UPLOAD);
+  const canAccessEBViewCalculate = session && hasPermission(session.user.role.permissions, PERMISSIONS.EB_VIEW_CALCULATE);
 
   const navItems = [
     {
@@ -54,6 +57,18 @@ const Sidebar = () => {
       label: 'Billing',
       icon: CreditCardIcon,
       show: canAccessBilling
+    },
+    {
+      href: '/eb-upload',
+      label: 'EB Upload',
+      icon: LightBulbIcon,
+      show: canAccessEBUpload
+    },
+    {
+      href: '/eb-view',
+      label: 'EB View & Calculate',
+      icon: DocumentTextIcon,
+      show: canAccessEBViewCalculate
     }
   ];
 

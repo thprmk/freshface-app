@@ -1,4 +1,3 @@
-// lib/permissions.ts
 export const PERMISSIONS = {
   // User management
   USERS_CREATE: 'users:create',
@@ -69,6 +68,10 @@ export const PERMISSIONS = {
   SETTINGS_UPDATE: 'settings:update',
   SETTINGS_MANAGE: 'settings:manage',
 
+  // EB (Electricity Bill) management
+  EB_UPLOAD: 'eb:upload',
+  EB_VIEW_CALCULATE: 'eb:view_calculate',
+
   ALL: '*'
 } as const;
 
@@ -83,7 +86,8 @@ export const PERMISSION_CATEGORIES = {
   STAFF_MANAGEMENT: 'Staff Management',
   INVENTORY_MANAGEMENT: 'Inventory Management',
   REPORTS_ACCESS: 'Reports Access',
-  SETTINGS_MANAGEMENT: 'Settings Management'
+  SETTINGS_MANAGEMENT: 'Settings Management',
+  EB_MANAGEMENT: 'EB Management'
 } as const;
 
 export const ALL_PERMISSIONS = [
@@ -156,6 +160,10 @@ export const ALL_PERMISSIONS = [
   { permission: PERMISSIONS.SETTINGS_UPDATE, description: 'Update system settings', category: PERMISSION_CATEGORIES.SETTINGS_MANAGEMENT },
   { permission: PERMISSIONS.SETTINGS_MANAGE, description: 'Full settings management access', category: PERMISSION_CATEGORIES.SETTINGS_MANAGEMENT },
 
+  // EB Management
+  { permission: PERMISSIONS.EB_UPLOAD, description: 'Upload morning and evening meter images', category: PERMISSION_CATEGORIES.EB_MANAGEMENT },
+  { permission: PERMISSIONS.EB_VIEW_CALCULATE, description: 'View meter images and calculate units/costs', category: PERMISSION_CATEGORIES.EB_MANAGEMENT },
+
   // Super Admin
   { permission: PERMISSIONS.ALL, description: 'Full system access (Super Admin)', category: 'System Administration' }
 ];
@@ -167,10 +175,7 @@ export const hasPermission = (userPermissions: string[], requiredPermission: str
   // Direct permission match
   if (userPermissions.includes(requiredPermission)) return true;
   
-  // Check for manage permission (resource:manage includes all actions for that resource)
-  const [resource, action] = requiredPermission.split(':');
-  const managePermission = `${resource}:manage`;
-  return userPermissions.includes(managePermission);
+  return false;
 };
 
 // Helper function to check multiple permissions (user needs ANY of the permissions)
@@ -214,7 +219,8 @@ export const ROLE_TEMPLATES = {
       PERMISSIONS.STAFF_MANAGE,
       PERMISSIONS.INVENTORY_MANAGE,
       PERMISSIONS.REPORTS_MANAGE,
-      PERMISSIONS.SETTINGS_READ
+      PERMISSIONS.SETTINGS_READ,
+      PERMISSIONS.EB_VIEW_CALCULATE
     ]
   },
   MANAGER: {
@@ -228,7 +234,8 @@ export const ROLE_TEMPLATES = {
       PERMISSIONS.SERVICES_READ,
       PERMISSIONS.STAFF_READ,
       PERMISSIONS.INVENTORY_UPDATE,
-      PERMISSIONS.REPORTS_READ
+      PERMISSIONS.REPORTS_READ,
+      PERMISSIONS.EB_UPLOAD
     ]
   },
   STAFF: {
@@ -252,7 +259,8 @@ export const ROLE_TEMPLATES = {
       PERMISSIONS.APPOINTMENTS_MANAGE,
       PERMISSIONS.BILLING_READ,
       PERMISSIONS.DASHBOARD_READ,
-      PERMISSIONS.SERVICES_READ
+      PERMISSIONS.SERVICES_READ,
+      PERMISSIONS.EB_UPLOAD
     ]
   }
 };
