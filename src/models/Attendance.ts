@@ -1,33 +1,45 @@
-import mongoose, { Schema, Document, Types } from 'mongoose';
-import { IStaff } from './staff'; // Assuming your staff model exports this interface
-import { ITemporaryExit } from './TemporaryExit';
+// models/Attendance.ts
+import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 
 export interface IAttendance extends Document {
-  staffId: Types.ObjectId | IStaff; // Can be populated
+  _id: Types.ObjectId;
+  staffId: Types.ObjectId;
   date: Date;
   checkIn: Date | null;
   checkOut: Date | null;
   status: 'present' | 'absent' | 'late' | 'incomplete' | 'on_leave';
-  temporaryExits: (Types.ObjectId | ITemporaryExit)[]; // Array of ObjectIds or populated exits
+  temporaryExits: Types.ObjectId[];
   totalWorkingMinutes: number;
   isWorkComplete: boolean;
   notes?: string;
+  overtimeHours: number; // <-- The new field
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
-const AttendanceSchema: Schema = new Schema({
-  staffId: { type: Schema.Types.ObjectId, ref: 'Staff', required: true },
-  date: { type: Date, required: true },
-  checkIn: { type: Date, default: null },
-  checkOut: { type: Date, default: null },
-  status: {
-    type: String,
-    enum: ['present', 'absent', 'late', 'incomplete', 'on_leave'],
-    required: true,
+const AttendanceSchema: Schema<IAttendance> = new Schema(
+  {
+    staffId: { type: Schema.Types.ObjectId, ref: 'Staff', required: true },
+    date: { type: Date, required: true },
+    checkIn: { type: Date, default: null },
+    checkOut: { type: Date, default: null },
+    status: {
+      type: String,
+      enum: ['present', 'absent', 'late', 'incomplete', 'on_leave'],
+      default: 'absent',
+    },
+    temporaryExits: [{ type: Schema.Types.ObjectId, ref: 'TemporaryExit' }],
+    totalWorkingMinutes: { type: Number, default: 0 },
+    isWorkComplete: { type: Boolean, default: false },
+    notes: { type: String, trim: true },
+    overtimeHours: { type: Number, default: 0 }, // <-- The new field with a default value
   },
-  temporaryExits: [{ type: Schema.Types.ObjectId, ref: 'TemporaryExit' }],
-  totalWorkingMinutes: { type: Number, default: 0 },
-  isWorkComplete: { type: Boolean, default: false },
-  notes: { type: String, trim: true },
-}, { timestamps: true });
+  { timestamps: true }
+);
 
-export default mongoose.models.Attendance || mongoose.model<IAttendance>('Attendance', AttendanceSchema);
+AttendanceSchema.index({ staffId: 1, date: 1 }, { unique: true });
+
+const Attendance: Model<IAttendance> =
+  mongoose.models.Attendance || mongoose.model<IAttendance>('Attendance', AttendanceSchema);
+
+export default Attendance;

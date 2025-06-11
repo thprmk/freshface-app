@@ -1,28 +1,67 @@
-// /api/attendance/route.ts
+// app/api/attendance/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '../../../lib/mongodb';
 import Attendance, { IAttendance } from '../../../models/Attendance';
 import Staff, { IStaff } from '../../../models/staff';
 import TemporaryExit, { ITemporaryExit } from '../../../models/TemporaryExit';
-import mongoose, { Types, Document } from 'mongoose';
-import { differenceInMinutes, startOfDay, endOfDay } from 'date-fns';
+import mongoose, { Types } from 'mongoose';
+import { differenceInMinutes, startOfDay, endOfDay, startOfMonth, endOfMonth } from 'date-fns';
 
 const isValidObjectId = (id: string): boolean => mongoose.Types.ObjectId.isValid(id);
 
-const REQUIRED_WORK_MINUTES_FOR_COMPLETE = 9 * 60;
+// Define standard work minutes. 9 hours = 540 minutes.
+const STANDARD_WORK_MINUTES = 9 * 60;
 
-// --- GET Handler (No changes needed) ---
+// --- GET Handler ---
 export async function GET(request: NextRequest) {
-  // ... (Your existing GET logic remains the same)
   const { searchParams } = request.nextUrl;
   const action = searchParams.get('action');
-
-  console.log(`GET /api/attendance called with action: ${action}`);
 
   try {
     await dbConnect();
 
+    // NEW ACTION: Get the total overtime hours for a staff member for a specific month
+    if (action === 'getOvertimeTotal') {
+        const staffId = searchParams.get('staffId');
+        const yearStr = searchParams.get('year');
+        const monthStr = searchParams.get('month'); // Expects a month name like "June"
+
+        if (!staffId || !yearStr || !monthStr || !isValidObjectId(staffId)) {
+            return NextResponse.json({ success: false, error: 'Valid staffId, year, and month name are required' }, { status: 400 });
+        }
+        
+        const year = parseInt(yearStr);
+        // Convert month name to a 0-based month index
+        const monthIndex = new Date(Date.parse(monthStr +" 1, 2012")).getMonth();
+
+        if (isNaN(year) || monthIndex < 0) {
+             return NextResponse.json({ success: false, error: 'Invalid year or month name' }, { status: 400 });
+        }
+
+        const startDate = startOfMonth(new Date(year, monthIndex));
+        const endDate = endOfMonth(new Date(year, monthIndex));
+
+        const result = await Attendance.aggregate([
+            {
+                $match: {
+                    staffId: new Types.ObjectId(staffId),
+                    date: { $gte: startDate, $lte: endDate },
+                    overtimeHours: { $gt: 0 }
+                }
+            },
+            {
+                $group: {
+                    _id: "$staffId",
+                    totalOtHours: { $sum: "$overtimeHours" }
+                }
+            }
+        ]);
+
+        const totalOtHours = result.length > 0 ? result[0].totalOtHours : 0;
+        return NextResponse.json({ success: true, data: { totalOtHours } });
+    }
+    
     if (action === 'getToday') {
       const todayDate = new Date();
       const todayStartBoundary = startOfDay(todayDate);
@@ -89,14 +128,9 @@ export async function GET(request: NextRequest) {
           .lean();
       return NextResponse.json({ success: true, data: records });
     }
-
-    const allRecords = await Attendance.find({})
-      .populate<{ staffId: Pick<IStaff, '_id' | 'name' | 'image' | 'position'> }>({ path: 'staffId', model: Staff, select: 'name image position' })
-      .populate<{ temporaryExits: ITemporaryExit[] }>({ path: 'temporaryExits', model: TemporaryExit })
-      .sort({ date: 'desc' })
-      .limit(100) 
-      .lean();
-    return NextResponse.json({ success: true, data: allRecords });
+    
+    // Fallback if no specific action matches
+    return NextResponse.json({ success: false, error: 'Invalid or missing GET action specified' }, { status: 400 });
 
   } catch (error: any) {
     console.error(`API GET /api/attendance (action: ${action}) Error:`, error);
@@ -108,15 +142,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const action = searchParams.get('action');
-  const attendanceIdParam = searchParams.get('attendanceId');
-
-  console.log(`POST /api/attendance called with action: ${action}, attendanceIdParam: ${attendanceIdParam}`);
 
   try {
     await dbConnect();
     
     if (action === 'checkIn') {
-      // ... (Your existing checkIn logic remains the same)
         const body = await request.json();
         const { staffId } = body;
         if (!staffId || !isValidObjectId(staffId)) {
@@ -154,6 +184,7 @@ export async function POST(request: NextRequest) {
             totalWorkingMinutes: 0,
             isWorkComplete: false,
             temporaryExits: [],
+            overtimeHours: 0, // Set default on creation
         });
         const savedRecord = await newAttendance.save();
         const populatedRecord = await Attendance.findById(savedRecord._id)
@@ -161,77 +192,87 @@ export async function POST(request: NextRequest) {
             .populate<{ temporaryExits: ITemporaryExit[] }>({ path: 'temporaryExits', model: TemporaryExit })
             .lean();
         return NextResponse.json({ success: true, data: populatedRecord }, { status: 201 });
-
-    } else if (action === 'checkOut') {
-      // ... (Your existing checkOut logic remains the same)
+    } 
+    
+    else if (action === 'checkOut') {
+      const attendanceIdParam = searchParams.get('attendanceId');
       if (!attendanceIdParam || !isValidObjectId(attendanceIdParam)) {
         return NextResponse.json({ success: false, error: 'Invalid or missing attendanceId for checkOut' }, { status: 400 });
       }
-      const checkOutTime = new Date();
-      const attendance = await Attendance.findById(attendanceIdParam)
-                                        .populate<{ temporaryExits: ITemporaryExit[] }>({path: 'temporaryExits', model: TemporaryExit});
+      
+      const attendance = await Attendance.findById(attendanceIdParam).populate('temporaryExits');
 
       if (!attendance) return NextResponse.json({ success: false, error: 'Attendance record not found' }, { status: 404 });
       if (attendance.checkOut) return NextResponse.json({ success: false, error: 'Already checked out' }, { status: 400 });
       if (!attendance.checkIn) return NextResponse.json({ success: false, error: 'Cannot check-out without a check-in record' }, { status: 400 });
 
-      const ongoingExit = (attendance.temporaryExits as ITemporaryExit[]).find(exit => !exit.endTime);
+      // --- THE FIX IS HERE ---
+      // Cast to 'unknown' first to satisfy TypeScript's strict checking with populate
+      const populatedExits = attendance.temporaryExits as unknown as ITemporaryExit[];
+
+      const ongoingExit = populatedExits.find(exit => !exit.endTime);
       if (ongoingExit) {
         return NextResponse.json({ success: false, error: 'An exit is still ongoing. End it before checking out.' }, { status: 400 });
       }
 
-      let totalMinutes = differenceInMinutes(checkOutTime, attendance.checkIn);
-      const temporaryExitMinutes = (attendance.temporaryExits as ITemporaryExit[]).reduce(
-        (total: number, exit: ITemporaryExit) => total + (exit.durationMinutes || 0), 0);
+      const checkOutTime = new Date();
+      const totalMinutes = differenceInMinutes(checkOutTime, attendance.checkIn);
+      
+      // Use the correctly typed variable
+      const temporaryExitMinutes = populatedExits.reduce((total, exit) => total + (exit.durationMinutes || 0), 0);
+      
       const finalWorkingMinutes = Math.max(0, totalMinutes - temporaryExitMinutes);
-      const isWorkComplete = finalWorkingMinutes >= REQUIRED_WORK_MINUTES_FOR_COMPLETE;
+
+      const overtimeMinutes = Math.max(0, finalWorkingMinutes - STANDARD_WORK_MINUTES);
+      const overtimeHours = overtimeMinutes / 60;
 
       attendance.checkOut = checkOutTime;
       attendance.totalWorkingMinutes = finalWorkingMinutes;
-      attendance.isWorkComplete = isWorkComplete;
-      attendance.status = isWorkComplete ? 'present' : 'incomplete'; 
+      attendance.isWorkComplete = finalWorkingMinutes >= STANDARD_WORK_MINUTES;
+      attendance.status = attendance.isWorkComplete ? 'present' : 'incomplete';
+      attendance.overtimeHours = overtimeHours;
       
       const updatedRecord = await attendance.save();
-      const populatedRecord = await Attendance.findById(updatedRecord._id)
+
+      const populatedResponseRecord = await Attendance.findById(updatedRecord._id)
         .populate<{ staffId: Pick<IStaff, '_id' | 'name' | 'image' | 'position'> }>({ path: 'staffId', model: Staff, select: 'name image position' })
         .populate<{ temporaryExits: ITemporaryExit[] }>({ path: 'temporaryExits', model: TemporaryExit })
         .lean();
-      return NextResponse.json({ success: true, data: populatedRecord });
-
-    } else if (action === 'startTempExit') {
+        
+      return NextResponse.json({ success: true, data: populatedResponseRecord });
+    }
+    
+    else if (action === 'startTempExit') {
         const body = await request.json();
+        const attendanceIdParam = searchParams.get('attendanceId');
+
         if (!attendanceIdParam || !isValidObjectId(attendanceIdParam)) {
             return NextResponse.json({ success: false, error: 'Invalid or missing attendanceId for startTempExit' }, { status: 400 });
         }
         
-        // MODIFIED: Only extract 'reason' from the body
         const { reason } = body; 
         
-        // MODIFIED: Validate that a reason was provided and is not just whitespace
         if (!reason || typeof reason !== 'string' || reason.trim() === '') {
             return NextResponse.json({ success: false, error: 'A valid reason is required to start a temporary exit.' }, { status: 400 });
         }
 
-        const currentAttendance = await Attendance.findById(attendanceIdParam)
-                                            .populate<{ temporaryExits: ITemporaryExit[] }>('temporaryExits');
+        const currentAttendance = await Attendance.findById(attendanceIdParam).populate('temporaryExits');
 
         if (!currentAttendance) return NextResponse.json({ success: false, error: 'Attendance record not found' }, { status: 404 });
         if (currentAttendance.checkOut) return NextResponse.json({ success: false, error: 'Cannot start temp exit after check-out' }, { status: 400 });
         if (!currentAttendance.checkIn) return NextResponse.json({ success: false, error: 'Cannot start temp exit before check-in' }, { status: 400 });
 
-        const hasOngoingExit = (currentAttendance.temporaryExits as ITemporaryExit[]).some(exit => !exit.endTime);
+        const populatedExits = currentAttendance.temporaryExits as unknown as ITemporaryExit[];
+        const hasOngoingExit = populatedExits.some(exit => !exit.endTime);
         if (hasOngoingExit) {
             return NextResponse.json({ success: false, error: 'An exit is already ongoing. End it before starting a new one.' }, { status: 400 });
         }
 
-        const startTime = new Date();
         const newTempExit = new TemporaryExit({
             attendanceId: currentAttendance._id,
-            startTime,
+            startTime: new Date(),
             endTime: null,
-            // MODIFIED: Use the trimmed reason from the request body
             reason: reason.trim(),
-            // Duration is not set here. It will be calculated when the exit ends.
             durationMinutes: 0, 
         });
         const savedTempExit = await newTempExit.save();
@@ -239,26 +280,22 @@ export async function POST(request: NextRequest) {
         await Attendance.updateOne({ _id: currentAttendance._id }, { $push: { temporaryExits: savedTempExit._id }});
         
         return NextResponse.json({ success: true, data: savedTempExit.toObject() });
-    } else {
-        return NextResponse.json({ success: false, error: 'Invalid action for POST request' }, { status: 400 });
     }
+    
+    return NextResponse.json({ success: false, error: 'Invalid action for POST request' }, { status: 400 });
 
   } catch (error: any) {
     console.error(`API POST /api/attendance (action: ${action}) Error:`, error);
-    if (error.name === 'ValidationError') return NextResponse.json({ success: false, error: error.message }, { status: 400 });
     return NextResponse.json({ success: false, error: `Server error: ${error.message || 'Unknown error'}` }, { status: 500 });
    }
 }
 
 
-// --- PUT Handler (No changes needed) ---
+// --- PUT Handler ---
 export async function PUT(request: NextRequest) {
-    // ... (Your existing PUT logic remains the same)
     const { searchParams } = request.nextUrl;
     const action = searchParams.get('action');
     const tempExitId = searchParams.get('tempExitId');
-
-    console.log(`PUT /api/attendance called with action: ${action}, tempExitId: ${tempExitId}`);
 
     if (action === 'endTempExit') {
         if (!tempExitId || !isValidObjectId(tempExitId)) {

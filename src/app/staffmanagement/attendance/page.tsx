@@ -196,7 +196,7 @@ const Attendance: React.FC = () => {
 
   const handleSubmitTempExit = async () => {
     if (!selectedAttendanceIdForTempExit || !tempExitReason.trim()) {
-      alert("A reason is required to start a temporary exit."); 
+      alert("A reason is required to start a temporary exit.");
       return;
     }
     try {
@@ -240,7 +240,7 @@ const Attendance: React.FC = () => {
         else { title = "Not Recorded"; icon = <Info className="h-4 w-4 text-gray-400" />; }
         return <div className="flex justify-center items-center h-full" title={title}>{icon}</div>;
     }
-    
+
     title = `View details for ${record.staff.name} on ${format(day, 'MMM d')}`;
     switch (record.status) {
         case 'present':
@@ -263,7 +263,7 @@ const Attendance: React.FC = () => {
     }
     return <div className="flex justify-center items-center h-full" title={title}>{icon}</div>;
   };
-  
+
   const handleCalendarCellClick = (staffId: string, day: Date) => {
     if (day.getTime() > new Date().getTime()) {
       return;
@@ -294,12 +294,11 @@ const Attendance: React.FC = () => {
         <div className="relative flex-1">
           <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input type="text" placeholder="Search staff name..."
-            className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-900"
             value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
         </div>
       </div>
 
-      {/* MODIFIED: Added text-gray-500 class for better visibility */}
       {loadingAttendance && activeStaffMembers.length === 0 && <div className="text-center py-10 text-gray-500"><p>Loading staff and attendance data...</p></div>}
       {loadingAttendance && activeStaffMembers.length > 0 && <div className="text-center py-10 text-gray-500"><p>Loading attendance data...</p></div>}
 
@@ -395,8 +394,8 @@ const Attendance: React.FC = () => {
                         </div>
                       </td>
                       {daysInMonth.map((day) => (
-                        <td 
-                          key={format(day, 'd')} 
+                        <td
+                          key={format(day, 'd')}
                           className="text-center py-2 border-l cursor-pointer hover:bg-purple-100"
                           onClick={() => handleCalendarCellClick(staff.id, day)}
                         >
@@ -412,16 +411,16 @@ const Attendance: React.FC = () => {
           </Card>
         </>
       )}
-      
+
       {selectedRecordForDetail && (
-        <AttendanceDetailModal 
-            record={selectedRecordForDetail} 
-            onClose={() => setSelectedRecordForDetail(null)} 
+        <AttendanceDetailModal
+            record={selectedRecordForDetail}
+            onClose={() => setSelectedRecordForDetail(null)}
         />
       )}
 
       {showConfirmModal && pendingCheckOutData && (<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"><div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl"><div className="flex items-start"><div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10"><AlertTriangle className="h-6 w-6 text-red-600" aria-hidden="true" /></div><div className="ml-3 text-left"><h3 className="text-lg font-semibold text-gray-900 mb-1">Incomplete Hours</h3><p className="text-sm text-gray-600 mb-4">Staff <span className="font-semibold">{pendingCheckOutData.staffName}</span> hasn't completed required hours ({formatDuration(REQUIRED_WORKING_MINUTES)}). Checkout anyway?</p></div></div><div className="flex justify-end space-x-3 mt-4"><Button variant="outline" onClick={() => { setShowConfirmModal(false); setPendingCheckOutData(null); }}>Cancel</Button><Button variant="danger" onClick={() => {if (pendingCheckOutData) confirmCheckOut(pendingCheckOutData.attendanceId);}}>Check Out</Button></div></div></div>)}
-      
+
       {showTempExitModal && selectedAttendanceIdForTempExit && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
@@ -429,13 +428,14 @@ const Attendance: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label htmlFor="tempExitReason" className="block text-sm font-medium text-gray-700 mb-1">Reason*</label>
-                <textarea 
-                  id="tempExitReason" 
-                  rows={3} 
-                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm px-3 py-2" 
-                  value={tempExitReason} 
-                  onChange={(e) => setTempExitReason(e.target.value)} 
-                  placeholder="e.g., Lunch break, client meeting..." 
+                <textarea
+                  id="tempExitReason"
+                  rows={3}
+                  // CHANGE: Added `text-gray-900` to make the text visible
+                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm px-3 py-2 text-gray-900"
+                  value={tempExitReason}
+                  onChange={(e) => setTempExitReason(e.target.value)}
+                  placeholder="e.g., Lunch break, client meeting..."
                   required
                 />
               </div>

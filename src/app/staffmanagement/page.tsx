@@ -1,34 +1,26 @@
-'use client'; // Ensure this is at the very top if it's a client component
+'use client'; 
 
 import React from 'react';
 import {
   Users, Calendar, Banknote, Award, ChevronUp, ChevronDown,
   TrendingUp, Clock, CircleUser
 } from 'lucide-react';
-import { useStaff } from '../../context/StaffContext'; // Corrected path
-import CardComponent from '../../components/ui/Card'; // Corrected path
+// ✅ FIX: Import StaffMember directly from the context, which is the single source of truth.
+import { useStaff, StaffMember } from '../../context/StaffContext'; 
+import CardComponent from '../../components/ui/Card'; 
 import { format } from 'date-fns';
 
-// Define the structure of a staff member
-// This should ideally be in a shared types file or co-located with StaffContext
-export interface StaffMember {
-  id: string | number; // Assuming id can be string or number based on context
-  name: string;
-  image: string;
-  position: string;
-  status: 'active' | 'inactive' | 'on_leave';
-  salary: number;
-  // Optional: Add other relevant fields
-}
+// ✅ FIX: The local StaffMember interface has been REMOVED. 
+// We now rely entirely on the type imported from StaffContext.
 
-// Props for the Card component imported (adjust as needed)
+// Props for the Card component (can be kept if the component doesn't export its own props)
 interface UICardProps {
   children: React.ReactNode;
   className?: string;
   title?: string;
 }
 
-// Your StatCard component
+// Your StatCard component (No changes needed here)
 const StatCard = ({ title, value, icon, change, changeType }: {
   title: string;
   value: string | number;
@@ -49,23 +41,9 @@ const StatCard = ({ title, value, icon, change, changeType }: {
       </div>
       {change !== undefined && changeType && (
         <div className="mt-3 flex items-center">
-          {changeType === 'up' ? (
-            <ChevronUp className="w-4 h-4 text-green-500" />
-          ) : changeType === 'down' ? (
-            <ChevronDown className="w-4 h-4 text-red-500" />
-          ) : (
-            <div className="w-4 h-4" />
-          )}
-          <p
-            className={`text-xs font-medium ml-1 ${
-              changeType === 'up'
-                ? 'text-green-500'
-                : changeType === 'down'
-                ? 'text-red-500'
-                : 'text-gray-500'
-            }`}
-          >
-            {change}% {changeType !== 'neutral' ? `from last month` : 'change'}
+          {changeType === 'up' ? <ChevronUp className="w-4 h-4 text-green-500" /> : <ChevronDown className="w-4 h-4 text-red-500" />}
+          <p className={`text-xs font-medium ml-1 ${changeType === 'up' ? 'text-green-500' : 'text-red-500'}`}>
+            {change}% from last month
           </p>
         </div>
       )}
@@ -75,30 +53,27 @@ const StatCard = ({ title, value, icon, change, changeType }: {
 
 
 const Dashboard: React.FC = () => {
-  // Ensure useStaff() is typed to return { staffMembers: StaffMember[] }
-  // or handle potential undefined case.
-  const { staffMembers } = useStaff(); // Assuming useStaff never returns undefined based on its implementation
+  const { staffMembers } = useStaff(); 
   const today = new Date();
 
-  const activeStaffCount = staffMembers.filter((staff: StaffMember) => staff.status === 'active').length;
-  const totalSalaryExpense = staffMembers.reduce((acc: number, staff: StaffMember) => acc + (staff.salary || 0), 0); // Added check for salary presence
+  // ✅ FIX: All type errors are now resolved because staffMembers uses the correct, consistent type.
+  const activeStaffCount = staffMembers.filter((staff) => staff.status === 'active').length;
+  const totalSalaryExpense = staffMembers.reduce((acc, staff) => acc + (staff.salary || 0), 0);
 
-  // Using actual staff data, assuming they have properties that can represent activity
   const recentActivities = staffMembers
-    .slice(0, 3) // Take first 3 for example
+    .slice(0, 3) 
     .map(staff => ({
       ...staff,
-      activity: staff.status === 'active' ? 'clocked in' : 'updated profile', // Example activity logic
-      time: format(new Date(), 'p'), // Example time, should be from actual attendance/log data
+      activity: staff.status === 'active' ? 'clocked in' : 'updated profile',
+      time: format(new Date(), 'p'),
   }));
 
-  // Example: simple sorting by salary for "top performers" demonstration
-  const topPerformers = [...staffMembers] // Create a shallow copy to sort
-    .sort((a, b) => b.salary - a.salary)
+  const topPerformers = [...staffMembers]
+    .sort((a, b) => (b.salary || 0) - (a.salary || 0)) // Added || 0 for safety
     .slice(0, 3)
     .map((staff, index) => ({
       ...staff,
-      performance: 95 - index * 5, // Placeholder performance metric
+      performance: 95 - index * 5,
   }));
 
 
@@ -116,46 +91,38 @@ const Dashboard: React.FC = () => {
           title="Total Staff"
           value={staffMembers.length}
           icon={<Users className="h-6 w-6 text-purple-600" />}
-          // change={5} // Example
-          // changeType="up"
         />
         <StatCard
           title="Present Today"
-          // Replace with actual attendance data logic
-          value={activeStaffCount} // For simplicity, showing active staff
+          value={activeStaffCount}
           icon={<Calendar className="h-6 w-6 text-teal-600" />}
-          // change={2} // Example
-          // changeType="up"
         />
         <StatCard
           title="Salary Expense (Monthly)"
-          value={`$${totalSalaryExpense.toLocaleString()}`}
+          value={`₹${totalSalaryExpense.toLocaleString()}`} // Changed to Rupee symbol
           icon={<Banknote className="h-6 w-6 text-pink-600" />}
-          // change={-1.5} // Example: Negative for decrease
-          // changeType="down"
         />
         <StatCard
           title="Avg. Performance"
-          // Replace with actual calculation
           value={topPerformers.length > 0 ? `${Math.round(topPerformers.reduce((sum, p) => sum + p.performance, 0) / topPerformers.length)}%` : "N/A"}
           icon={<Award className="h-6 w-6 text-amber-500" />}
-          // change={1} // Example
-          // changeType="up"
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <CardComponent title="Recent Activity" className="lg:col-span-2 bg-white p-4 shadow rounded-lg">
           <div className="space-y-4">
-            {recentActivities.length > 0 ? recentActivities.map((activityItem: StaffMember & { activity: string; time: string }) => (
+             {/* ✅ FIX: The type for activityItem is now correctly inferred from the consistent StaffMember type. */}
+            {recentActivities.length > 0 ? recentActivities.map((activityItem) => (
               <div key={activityItem.id} className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                 <div className="relative flex-shrink-0">
                   <img
+                    // This logic correctly handles the possibility of a null image
                     src={activityItem.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(activityItem.name)}&background=random`}
                     alt={activityItem.name}
                     className="w-10 h-10 rounded-full object-cover border border-gray-200"
                   />
-                  {activityItem.status === 'active' && ( // Example indicator
+                  {activityItem.status === 'active' && (
                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
                   )}
                 </div>
@@ -175,7 +142,8 @@ const Dashboard: React.FC = () => {
 
         <CardComponent title="Top Performers" className="lg:col-span-1 bg-white p-4 shadow rounded-lg">
           <div className="space-y-4">
-            {topPerformers.length > 0 ? topPerformers.map((staff: StaffMember & { performance: number }, index: number) => (
+            {/* ✅ FIX: The type for staff is now correctly inferred. */}
+            {topPerformers.length > 0 ? topPerformers.map((staff, index) => (
               <div key={staff.id} className="flex items-center py-2">
                 <div className="flex-shrink-0 mr-3">
                   <div className="relative">

@@ -1,7 +1,7 @@
 // src/context/StaffContext.tsx
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { format, parseISO, startOfDay, isEqual } from 'date-fns'; // Added startOfDay, isEqual
+import { format, parseISO, startOfDay, isEqual } from 'date-fns';
 
 // --- Type Definitions ---
 export interface PositionOption {
@@ -91,22 +91,29 @@ export interface NewPerformanceRecordPayload {
   metrics: PerformanceMetrics;
 }
 
-// Helper type for the raw API data before it's mapped.
 interface PerformanceRecordAPIType {
     _id: string;
     staffId: { _id: string; name: string; position: string; image: string | null; };
     month: string; year: number; rating: number; comments: string; metrics: PerformanceMetrics; createdAt?: string; updatedAt?: string;
 }
 
+// --- SALARY TYPES - UPDATED ---
 
+// <-- CHANGED: Updated SalaryRecordType to match the new detailed schema
 export interface SalaryRecordType {
   id: string;
   staffId: string;
   month: string;
   year: number;
   baseSalary: number;
-  bonus: number;
-  deductions: number;
+  otHours: number;
+  otAmount: number;
+  extraDays: number;
+  extraDayPay: number;
+  foodDeduction: number;
+  recurExpense: number;
+  totalEarnings: number;
+  totalDeductions: number;
   advanceDeducted: number;
   netSalary: number;
   isPaid: boolean;
@@ -121,18 +128,26 @@ export interface SalaryRecordType {
   } | null;
 }
 
+// <-- CHANGED: Updated ProcessSalaryPayload to match the new detailed schema
 export interface ProcessSalaryPayload {
   staffId: string;
   month: string;
   year: number;
   baseSalary: number;
-  bonus: number;
-  deductions: number;
+  otHours: number;
+  otAmount: number;
+  extraDays: number;
+  extraDayPay: number;
+  foodDeduction: number;
+  recurExpense: number;
+  totalEarnings: number;
+  totalDeductions: number;
   advanceDeducted: number;
   netSalary: number;
   isPaid: boolean;
   paidDate: string | null;
 }
+
 
 // --- Attendance and Temporary Exit Types ---
 interface PopulatedStaffInfoAPI { _id: string; name: string; image?: string | null; position?: string; }
@@ -171,7 +186,6 @@ export interface StaffContextType {
   fetchAttendanceRecords: (filter?: { staffId?: string; year?: number; month?: number; date?: string; startDate?: string; endDate?: string; }) => Promise<void>;
   checkInStaff: (staffId: string) => Promise<AttendanceRecordTypeFE>;
   checkOutStaff: (attendanceId: string) => Promise<AttendanceRecordTypeFE>;
-  // --- THIS IS THE MODIFIED LINE ---
   startTemporaryExit: (attendanceId: string, reason: string) => Promise<TemporaryExitTypeFE>;
   endTemporaryExit: (attendanceId: string, tempExitId: string) => Promise<TemporaryExitTypeFE>;
 
@@ -192,7 +206,8 @@ export interface StaffContextType {
   }) => Promise<void>;
 
   processSalary: (payload: ProcessSalaryPayload) => Promise<SalaryRecordType>;
-  markSalaryAsPaid: (recordId: string, paidDate: string) => Promise<SalaryRecordType>;
+  // <-- CHANGED: The function signature is updated to take the full record object
+  markSalaryAsPaid: (record: SalaryRecordType, paidDate: string) => Promise<SalaryRecordType>;
 }
 
 const StaffContext = createContext<StaffContextType | undefined>(undefined);
@@ -213,10 +228,9 @@ const initialPositionOptionsData: PositionOption[] = [
   { value: "", label: "Select Position" },
   { value: "Lead Stylist", label: "Lead Stylist" },
   { value: "Creative Director", label: "Creative Director" },
-  // ... other positions
 ];
 
-// --- Helper Functions ---
+// --- Helper Functions --- (No changes below this line until the Salary section)
 const mapApiAttendanceToFE = (apiRecord: AttendanceRecordTypeAPI): AttendanceRecordTypeFE => {
   const localDate = parseISO(apiRecord.date);
   return {
@@ -239,7 +253,7 @@ const mapApiAttendanceToFE = (apiRecord: AttendanceRecordTypeAPI): AttendanceRec
       reason: apiExit.reason,
       durationMinutes: apiExit.durationMinutes,
       isOngoing: !apiExit.endTime,
-    })).sort((a, b) => a.startTime.getTime() - b.startTime.getTime()), // Sort temp exits
+    })).sort((a, b) => a.startTime.getTime() - b.startTime.getTime()),
     totalWorkingMinutes: apiRecord.totalWorkingMinutes,
     isWorkComplete: apiRecord.isWorkComplete,
     notes: apiRecord.notes,
@@ -288,7 +302,6 @@ async function handleApiResponseError(response: Response, defaultErrorMessage: s
   return new Error(errorMsg);
 }
 
-
 // --- StaffProvider Implementation ---
 export const StaffProvider: React.FC<StaffProviderProps> = ({ children }) => {
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
@@ -323,298 +336,68 @@ export const StaffProvider: React.FC<StaffProviderProps> = ({ children }) => {
   const getStaffById = useCallback((staffId: string) => staffMembers.find(m => m.id === staffId), [staffMembers]);
 
   // --- Advance Payments --- (No Changes Here)
-  const fetchAdvancePayments = useCallback(async () => {
-    setLoadingAdvancePayments(true);
-    setErrorAdvancePayments(null);
-    try {
-      const response = await fetch('/api/advancepayment');
-      if (!response.ok) throw await handleApiResponseError(response, 'Failed to fetch advance payments');
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error || 'Failed to fetch advance payments');
-      setAdvancePayments(result.data);
-    } catch (err) {
-      setErrorAdvancePayments(err instanceof Error ? err.message : 'Unknown error fetching advance payments');
-      console.error("Error fetching advance payments:", err);
-    } finally {
-      setLoadingAdvancePayments(false);
-    }
-  }, []);
-
-  const requestAdvance = useCallback(async (payload: NewAdvancePaymentPayload) => {
-    setErrorAdvancePayments(null);
-    try {
-      const response = await fetch('/api/advancepayment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (!response.ok) throw await handleApiResponseError(response, 'Failed to request advance payment');
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error || 'Failed to request advance');
-      const newAdvance: AdvancePaymentType = result.data;
-      setAdvancePayments(prev => [newAdvance, ...prev.filter(p => p.id !== newAdvance.id)].sort((a,b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime()));
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Unknown error requesting advance';
-      setErrorAdvancePayments(msg);
-      console.error('Error requesting advance:', error);
-      throw new Error(msg);
-    }
-  }, []);
-
-  const updateAdvanceStatus = useCallback(async (paymentId: string, status: 'approved' | 'rejected') => {
-    setErrorAdvancePayments(null);
-    try {
-      const response = await fetch(`/api/advancepayment/${paymentId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
-      if (!response.ok) throw await handleApiResponseError(response, 'Failed to update advance status');
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error || 'Failed to update advance status');
-      const updatedAdvance: AdvancePaymentType = result.data;
-      setAdvancePayments(prev => prev.map(p => (p.id === paymentId ? updatedAdvance : p)));
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Unknown error updating advance status';
-      setErrorAdvancePayments(msg);
-      console.error('Error updating advance status:', error);
-      throw new Error(msg);
-    }
-  }, []);
+  const fetchAdvancePayments = useCallback(async () => { setLoadingAdvancePayments(true); setErrorAdvancePayments(null); try { const response = await fetch('/api/advancepayment'); if (!response.ok) throw await handleApiResponseError(response, 'Failed to fetch advance payments'); const result = await response.json(); if (!result.success) throw new Error(result.error || 'Failed to fetch advance payments'); setAdvancePayments(result.data); } catch (err) { setErrorAdvancePayments(err instanceof Error ? err.message : 'Unknown error fetching advance payments'); console.error("Error fetching advance payments:", err); } finally { setLoadingAdvancePayments(false); } }, []);
+  const requestAdvance = useCallback(async (payload: NewAdvancePaymentPayload) => { setErrorAdvancePayments(null); try { const response = await fetch('/api/advancepayment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); if (!response.ok) throw await handleApiResponseError(response, 'Failed to request advance payment'); const result = await response.json(); if (!result.success) throw new Error(result.error || 'Failed to request advance'); const newAdvance: AdvancePaymentType = result.data; setAdvancePayments(prev => [newAdvance, ...prev.filter(p => p.id !== newAdvance.id)].sort((a,b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime())); } catch (error) { const msg = error instanceof Error ? error.message : 'Unknown error requesting advance'; setErrorAdvancePayments(msg); console.error('Error requesting advance:', error); throw new Error(msg); } }, []);
+  const updateAdvanceStatus = useCallback(async (paymentId: string, status: 'approved' | 'rejected') => { setErrorAdvancePayments(null); try { const response = await fetch(`/api/advancepayment/${paymentId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }); if (!response.ok) throw await handleApiResponseError(response, 'Failed to update advance status'); const result = await response.json(); if (!result.success) throw new Error(result.error || 'Failed to update advance status'); const updatedAdvance: AdvancePaymentType = result.data; setAdvancePayments(prev => prev.map(p => (p.id === paymentId ? updatedAdvance : p))); } catch (error) { const msg = error instanceof Error ? error.message : 'Unknown error updating advance status'; setErrorAdvancePayments(msg); console.error('Error updating advance status:', error); throw new Error(msg); } }, []);
 
   // --- Attendance --- (No Changes Here)
-  const fetchAttendanceRecords = useCallback(async (filter?: { staffId?: string; year?: number; month?: number; date?: string; startDate?: string; endDate?: string; }) => {
-    setLoadingAttendance(true); setErrorAttendance(null);
-    let url = '/api/attendance';
-    const queryParams = new URLSearchParams();
-    if (filter?.date) { queryParams.append('action', 'getToday'); queryParams.append('date', filter.date); }
-    else if (filter?.year && filter?.month) { queryParams.append('action', 'getMonthly'); queryParams.append('year', String(filter.year)); queryParams.append('month', String(filter.month)); }
-    else if (filter?.staffId) { queryParams.append('action', 'getStaffHistory'); queryParams.append('staffId', filter.staffId); if (filter.startDate) queryParams.append('startDate', filter.startDate); if (filter.endDate) queryParams.append('endDate', filter.endDate); }
-    else { queryParams.append('action', 'getToday'); queryParams.append('date', format(new Date(), 'yyyy-MM-dd')); }
+  const fetchAttendanceRecords = useCallback(async (filter?: { staffId?: string; year?: number; month?: number; date?: string; startDate?: string; endDate?: string; }) => { setLoadingAttendance(true); setErrorAttendance(null); let url = '/api/attendance'; const queryParams = new URLSearchParams(); if (filter?.date) { queryParams.append('action', 'getToday'); queryParams.append('date', filter.date); } else if (filter?.year && filter?.month) { queryParams.append('action', 'getMonthly'); queryParams.append('year', String(filter.year)); queryParams.append('month', String(filter.month)); } else if (filter?.staffId) { queryParams.append('action', 'getStaffHistory'); queryParams.append('staffId', filter.staffId); if (filter.startDate) queryParams.append('startDate', filter.startDate); if (filter.endDate) queryParams.append('endDate', filter.endDate); } else { queryParams.append('action', 'getToday'); queryParams.append('date', format(new Date(), 'yyyy-MM-dd')); } if (queryParams.toString()) { url += `?${queryParams.toString()}`; } try { const response = await fetch(url); if (!response.ok) throw await handleApiResponseError(response, `API failed to fetch attendance from ${url}`); const result = await response.json(); if (!result.success) throw new Error(result.error || 'API failed to fetch attendance'); const feRecords = (result.data as AttendanceRecordTypeAPI[]).map(mapApiAttendanceToFE); setAttendanceRecordsFE(feRecords.sort((a,b) => b.date.getTime() - a.date.getTime() || a.staff.name.localeCompare(b.staff.name))); } catch (err) { setErrorAttendance(err instanceof Error ? err.message : 'Unknown error fetching attendance'); console.error(`Error fetching attendance from ${url}:`, err); } finally { setLoadingAttendance(false); } }, []);
+  const checkInStaff = useCallback(async (staffId: string): Promise<AttendanceRecordTypeFE> => { setLoadingAttendance(true); setErrorAttendance(null); try { const response = await fetch('/api/attendance?action=checkIn', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ staffId }), }); if (!response.ok) throw await handleApiResponseError(response, 'Failed to check-in staff'); const result = await response.json(); if (!result.success || !result.data) throw new Error(result.error || 'API failed to check-in staff'); const newApiRecord = result.data as AttendanceRecordTypeAPI; const newFeRecord = mapApiAttendanceToFE(newApiRecord); setAttendanceRecordsFE(prevRecords => { const recordDateStart = startOfDay(newFeRecord.date); const otherRecords = prevRecords.filter(r => !(r.staff.id === newFeRecord.staff.id && isEqual(startOfDay(r.date), recordDateStart)) ); return [...otherRecords, newFeRecord].sort((a, b) => b.date.getTime() - a.date.getTime() || a.staff.name.localeCompare(b.staff.name)); }); return newFeRecord; } catch (error) { const err = error instanceof Error ? error : new Error('Unknown error during check-in'); setErrorAttendance(err.message); console.error('Error checking in staff:', err); throw err; } finally { setLoadingAttendance(false); } }, []);
+  const checkOutStaff = useCallback(async (attendanceId: string): Promise<AttendanceRecordTypeFE> => { setLoadingAttendance(true); setErrorAttendance(null); try { const response = await fetch(`/api/attendance?action=checkOut&attendanceId=${attendanceId}`, { method: 'POST', }); if (!response.ok) throw await handleApiResponseError(response, 'Failed to check-out staff'); const result = await response.json(); if (!result.success || !result.data) throw new Error(result.error || 'API failed to check-out staff'); const updatedApiRecord = result.data as AttendanceRecordTypeAPI; const updatedFeRecord = mapApiAttendanceToFE(updatedApiRecord); setAttendanceRecordsFE(prevRecords => prevRecords.map(r => (r.id === updatedFeRecord.id ? updatedFeRecord : r)) .sort((a, b) => b.date.getTime() - a.date.getTime() || a.staff.name.localeCompare(b.staff.name)) ); return updatedFeRecord; } catch (error) { const err = error instanceof Error ? error : new Error('Unknown error during check-out'); setErrorAttendance(err.message); console.error('Error checking out staff:', err); throw err; } finally { setLoadingAttendance(false); } }, []);
+  const startTemporaryExit = useCallback(async (attendanceId: string, reason: string): Promise<TemporaryExitTypeFE> => { setLoadingAttendance(true); setErrorAttendance(null); try { const response = await fetch(`/api/attendance?action=startTempExit&attendanceId=${attendanceId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }), }); if (!response.ok) throw await handleApiResponseError(response, 'Failed to start temporary exit'); const result = await response.json(); if (!result.success || !result.data) throw new Error(result.error || 'API failed to start temporary exit'); const newTempExitApi = result.data as TemporaryExitTypeAPI; const newTempExitFe: TemporaryExitTypeFE = { id: newTempExitApi._id, attendanceId: newTempExitApi.attendanceId, startTime: parseISO(newTempExitApi.startTime), endTime: newTempExitApi.endTime ? parseISO(newTempExitApi.endTime) : null, reason: newTempExitApi.reason, durationMinutes: newTempExitApi.durationMinutes, isOngoing: !newTempExitApi.endTime, }; setAttendanceRecordsFE(prevRecords => prevRecords.map(ar => { if (ar.id === attendanceId) { return { ...ar, temporaryExits: [...(ar.temporaryExits || []), newTempExitFe] .sort((a,b) => a.startTime.getTime() - b.startTime.getTime()), }; } return ar; }).sort((a, b) => b.date.getTime() - a.date.getTime() || a.staff.name.localeCompare(b.staff.name)) ); return newTempExitFe; } catch (error) { const err = error instanceof Error ? error : new Error('Unknown error starting temporary exit'); setErrorAttendance(err.message); console.error('Error starting temporary exit:', err); throw err; } finally { setLoadingAttendance(false); } }, []);
+  const endTemporaryExit = useCallback(async (attendanceId: string, tempExitId: string): Promise<TemporaryExitTypeFE> => { setLoadingAttendance(true); setErrorAttendance(null); try { const response = await fetch(`/api/attendance?action=endTempExit&tempExitId=${tempExitId}`, { method: 'PUT', }); if (!response.ok) throw await handleApiResponseError(response, 'Failed to end temporary exit'); const result = await response.json(); if (!result.success || !result.data) throw new Error(result.error || 'API failed to end temporary exit'); const updatedTempExitApi = result.data as TemporaryExitTypeAPI; const updatedTempExitFe: TemporaryExitTypeFE = { id: updatedTempExitApi._id, attendanceId: updatedTempExitApi.attendanceId, startTime: parseISO(updatedTempExitApi.startTime), endTime: updatedTempExitApi.endTime ? parseISO(updatedTempExitApi.endTime) : null, reason: updatedTempExitApi.reason, durationMinutes: updatedTempExitApi.durationMinutes, isOngoing: !updatedTempExitApi.endTime, }; setAttendanceRecordsFE(prevRecords => prevRecords.map(ar => { if (ar.id === attendanceId) { return { ...ar, temporaryExits: (ar.temporaryExits || []).map(te => te.id === updatedTempExitFe.id ? updatedTempExitFe : te ).sort((a,b) => a.startTime.getTime() - b.startTime.getTime()), }; } return ar; }).sort((a, b) => b.date.getTime() - a.date.getTime() || a.staff.name.localeCompare(b.staff.name)) ); return updatedTempExitFe; } catch (error) { const err = error instanceof Error ? error : new Error('Unknown error ending temporary exit'); setErrorAttendance(err.message); console.error('Error ending temporary exit:', err); throw err; } finally { setLoadingAttendance(false); } }, []);
 
-    if (queryParams.toString()) { url += `?${queryParams.toString()}`; }
+  // --- Performance --- (No Changes Here)
+  const fetchPerformanceRecords = useCallback(async (filter: { month?: string; year?: number; staffId?: string }) => { setLoadingPerformance(true); setErrorPerformance(null); const queryParams = new URLSearchParams(); if (filter.month) queryParams.append('month', filter.month); if (filter.year) queryParams.append('year', String(filter.year)); if (filter.staffId) queryParams.append('staffId', filter.staffId); try { const response = await fetch(`/api/performance?${queryParams.toString()}`); if (!response.ok) throw await handleApiResponseError(response, 'Failed to fetch performance records'); const result = await response.json(); if (!result.success) throw new Error(result.error || 'API failed to fetch performance records'); const mappedData = (result.data as PerformanceRecordAPIType[]).map(mapApiPerformanceToFE); setPerformanceRecords(mappedData); } catch (err) { setErrorPerformance(err instanceof Error ? err.message : 'Unknown error fetching performance records'); console.error("Error fetching performance records:", err); } finally { setLoadingPerformance(false); } }, []);
+  const recordPerformance = useCallback(async (payload: NewPerformanceRecordPayload): Promise<void> => { setErrorPerformance(null); try { const response = await fetch('/api/performance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); if (!response.ok) throw await handleApiResponseError(response, 'Failed to record performance'); const result = await response.json(); if (!result.success || !result.data) throw new Error(result.error || 'API failed to record performance'); const newRecord = mapApiPerformanceToFE(result.data as PerformanceRecordAPIType); setPerformanceRecords(prev => [...prev, newRecord].sort((a,b) => (b.year - a.year) || (months.indexOf(b.month) - months.indexOf(a.month)) )); } catch (error) { const msg = error instanceof Error ? error.message : 'Unknown error recording performance'; setErrorPerformance(msg); console.error('Error recording performance:', error); throw new Error(msg); } }, [months]);
+
+  // --- Salary Record Functions --- (CHANGES ARE IN THIS SECTION) ---
+
+  const fetchSalaryRecords = useCallback(async (filter?: { staffId?: string; year?: number; month?: string; populateStaff?: 'true' | 'false' | boolean }) => { setLoadingSalary(true); setErrorSalary(null); let url = '/api/salary'; const queryParams = new URLSearchParams(); if (filter?.staffId) queryParams.append('staffId', filter.staffId); if (filter?.year) queryParams.append('year', String(filter.year)); if (filter?.month) queryParams.append('month', filter.month); if (filter?.populateStaff) queryParams.append('populateStaff', String(filter.populateStaff)); if (queryParams.toString()) { url += `?${queryParams.toString()}`; } try { const response = await fetch(url); if (!response.ok) throw await handleApiResponseError(response, 'Failed to fetch salary records'); const result = await response.json(); if (!result.success) throw new Error(result.error || 'API failed to fetch salary records'); setSalaryRecords(result.data); } catch (err) { const error = err instanceof Error ? err : new Error('Unknown error fetching salary records'); setErrorSalary(error.message); console.error("Error fetching salary records:", error); setSalaryRecords([]); } finally { setLoadingSalary(false); } }, []);
+  
+  const processSalary = useCallback(async (payload: ProcessSalaryPayload): Promise<SalaryRecordType> => { setLoadingSalary(true); setErrorSalary(null); try { const response = await fetch('/api/salary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); if (!response.ok) throw await handleApiResponseError(response, 'Failed to process salary record'); const result = await response.json(); if (!result.success || !result.data) throw new Error(result.error || 'API failed to process salary'); const processedRecord = result.data as SalaryRecordType; setSalaryRecords(prev => { const index = prev.findIndex(r => r.id === processedRecord.id); if (index > -1) { const updated = [...prev]; updated[index] = processedRecord; return updated; } return [...prev, processedRecord]; }); return processedRecord; } catch (error) { const err = error instanceof Error ? error : new Error('Unknown error processing salary'); setErrorSalary(err.message); console.error('Error processing salary:', err); throw err; } finally { setLoadingSalary(false); } }, []);
+  
+  // <-- CHANGED: This function is completely rewritten to work correctly.
+  const markSalaryAsPaid = useCallback(async (record: SalaryRecordType, paidDate: string): Promise<SalaryRecordType> => {
+    setLoadingSalary(true);
+    setErrorSalary(null);
     try {
-      const response = await fetch(url);
-      if (!response.ok) throw await handleApiResponseError(response, `API failed to fetch attendance from ${url}`);
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error || 'API failed to fetch attendance');
-      
-      const feRecords = (result.data as AttendanceRecordTypeAPI[]).map(mapApiAttendanceToFE);
-      setAttendanceRecordsFE(feRecords.sort((a,b) => b.date.getTime() - a.date.getTime() || a.staff.name.localeCompare(b.staff.name)));
-    } catch (err) {
-      setErrorAttendance(err instanceof Error ? err.message : 'Unknown error fetching attendance');
-      console.error(`Error fetching attendance from ${url}:`, err);
-    } finally {
-      setLoadingAttendance(false);
-    }
-  }, []);
-
-  const checkInStaff = useCallback(async (staffId: string): Promise<AttendanceRecordTypeFE> => {
-    setLoadingAttendance(true);
-    setErrorAttendance(null);
-    try {
-      const response = await fetch('/api/attendance?action=checkIn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ staffId }),
-      });
-      if (!response.ok) throw await handleApiResponseError(response, 'Failed to check-in staff');
-      const result = await response.json();
-      if (!result.success || !result.data) throw new Error(result.error || 'API failed to check-in staff');
-
-      const newApiRecord = result.data as AttendanceRecordTypeAPI;
-      const newFeRecord = mapApiAttendanceToFE(newApiRecord);
-
-      setAttendanceRecordsFE(prevRecords => {
-        const recordDateStart = startOfDay(newFeRecord.date);
-        const otherRecords = prevRecords.filter(r =>
-            !(r.staff.id === newFeRecord.staff.id && isEqual(startOfDay(r.date), recordDateStart))
-        );
-        return [...otherRecords, newFeRecord].sort((a, b) => b.date.getTime() - a.date.getTime() || a.staff.name.localeCompare(b.staff.name));
-      });
-      return newFeRecord;
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error('Unknown error during check-in');
-      setErrorAttendance(err.message);
-      console.error('Error checking in staff:', err);
-      throw err;
-    } finally {
-      setLoadingAttendance(false);
-    }
-  }, []);
-
-  const checkOutStaff = useCallback(async (attendanceId: string): Promise<AttendanceRecordTypeFE> => {
-    setLoadingAttendance(true);
-    setErrorAttendance(null);
-    try {
-      const response = await fetch(`/api/attendance?action=checkOut&attendanceId=${attendanceId}`, {
-        method: 'POST',
-      });
-      if (!response.ok) throw await handleApiResponseError(response, 'Failed to check-out staff');
-      const result = await response.json();
-      if (!result.success || !result.data) throw new Error(result.error || 'API failed to check-out staff');
-
-      const updatedApiRecord = result.data as AttendanceRecordTypeAPI;
-      const updatedFeRecord = mapApiAttendanceToFE(updatedApiRecord);
-
-      setAttendanceRecordsFE(prevRecords =>
-        prevRecords.map(r => (r.id === updatedFeRecord.id ? updatedFeRecord : r))
-                   .sort((a, b) => b.date.getTime() - a.date.getTime() || a.staff.name.localeCompare(b.staff.name))
-      );
-      return updatedFeRecord;
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error('Unknown error during check-out');
-      setErrorAttendance(err.message);
-      console.error('Error checking out staff:', err);
-      throw err;
-    } finally {
-      setLoadingAttendance(false);
-    }
-  }, []);
-
-  // --- THIS IS THE MODIFIED FUNCTION ---
-  const startTemporaryExit = useCallback(async (attendanceId: string, reason: string): Promise<TemporaryExitTypeFE> => {
-    setLoadingAttendance(true);
-    setErrorAttendance(null);
-    try {
-      const response = await fetch(`/api/attendance?action=startTempExit&attendanceId=${attendanceId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // MODIFIED: The body no longer contains durationMinutes
-        body: JSON.stringify({ reason }),
-      });
-      if (!response.ok) throw await handleApiResponseError(response, 'Failed to start temporary exit');
-      const result = await response.json();
-      if (!result.success || !result.data) throw new Error(result.error || 'API failed to start temporary exit');
-
-      const newTempExitApi = result.data as TemporaryExitTypeAPI;
-      const newTempExitFe: TemporaryExitTypeFE = {
-          id: newTempExitApi._id,
-          attendanceId: newTempExitApi.attendanceId,
-          startTime: parseISO(newTempExitApi.startTime),
-          endTime: newTempExitApi.endTime ? parseISO(newTempExitApi.endTime) : null,
-          reason: newTempExitApi.reason,
-          durationMinutes: newTempExitApi.durationMinutes,
-          isOngoing: !newTempExitApi.endTime,
+      // 1. Create a full payload, copying the existing record data.
+      const payloadToUpdate: ProcessSalaryPayload = {
+        ...record,
+        isPaid: true,
+        paidDate: paidDate,
       };
 
-      setAttendanceRecordsFE(prevRecords =>
-        prevRecords.map(ar => {
-          if (ar.id === attendanceId) {
-            return {
-              ...ar,
-              temporaryExits: [...(ar.temporaryExits || []), newTempExitFe]
-                                .sort((a,b) => a.startTime.getTime() - b.startTime.getTime()),
-            };
-          }
-          return ar;
-        }).sort((a, b) => b.date.getTime() - a.date.getTime() || a.staff.name.localeCompare(b.staff.name))
-      );
-      return newTempExitFe;
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error('Unknown error starting temporary exit');
-      setErrorAttendance(err.message);
-      console.error('Error starting temporary exit:', err);
-      throw err;
-    } finally {
-      setLoadingAttendance(false);
-    }
-  }, []);
-
-  const endTemporaryExit = useCallback(async (attendanceId: string, tempExitId: string): Promise<TemporaryExitTypeFE> => {
-    setLoadingAttendance(true);
-    setErrorAttendance(null);
-    try {
-      const response = await fetch(`/api/attendance?action=endTempExit&tempExitId=${tempExitId}`, {
-        method: 'PUT',
+      // 2. Use a POST request to the main /api/salary endpoint.
+      //    The API will find the record by staffId, month, and year, and update it.
+      const response = await fetch('/api/salary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payloadToUpdate),
       });
-      if (!response.ok) throw await handleApiResponseError(response, 'Failed to end temporary exit');
+
+      if (!response.ok) throw await handleApiResponseError(response, 'Failed to mark salary as paid');
+      
       const result = await response.json();
-      if (!result.success || !result.data) throw new Error(result.error || 'API failed to end temporary exit');
+      if (!result.success || !result.data) throw new Error(result.error || 'API failed to mark salary as paid');
+      
+      const updatedRecord = result.data as SalaryRecordType;
 
-      const updatedTempExitApi = result.data as TemporaryExitTypeAPI;
-      const updatedTempExitFe: TemporaryExitTypeFE = {
-        id: updatedTempExitApi._id,
-        attendanceId: updatedTempExitApi.attendanceId,
-        startTime: parseISO(updatedTempExitApi.startTime),
-        endTime: updatedTempExitApi.endTime ? parseISO(updatedTempExitApi.endTime) : null,
-        reason: updatedTempExitApi.reason,
-        durationMinutes: updatedTempExitApi.durationMinutes,
-        isOngoing: !updatedTempExitApi.endTime,
-      };
+      // 3. Update the local state with the returned data.
+      setSalaryRecords(prev => prev.map(r => (r.id === updatedRecord.id ? updatedRecord : r)));
+      
+      return updatedRecord;
 
-      setAttendanceRecordsFE(prevRecords =>
-        prevRecords.map(ar => {
-          if (ar.id === attendanceId) {
-            return {
-              ...ar,
-              temporaryExits: (ar.temporaryExits || []).map(te =>
-                te.id === updatedTempExitFe.id ? updatedTempExitFe : te
-              ).sort((a,b) => a.startTime.getTime() - b.startTime.getTime()),
-            };
-          }
-          return ar;
-        }).sort((a, b) => b.date.getTime() - a.date.getTime() || a.staff.name.localeCompare(b.staff.name))
-      );
-      return updatedTempExitFe;
     } catch (error) {
-      const err = error instanceof Error ? error : new Error('Unknown error ending temporary exit');
-      setErrorAttendance(err.message);
-      console.error('Error ending temporary exit:', err);
+      const err = error instanceof Error ? error : new Error('Unknown error marking salary as paid');
+      setErrorSalary(err.message);
+      console.error('Error marking salary as paid:', err);
       throw err;
     } finally {
-      setLoadingAttendance(false);
+      setLoadingSalary(false);
     }
   }, []);
-
-  // --- Performance ---
-  const fetchPerformanceRecords = useCallback(async (filter: { month?: string; year?: number; staffId?: string }) => {
-    setLoadingPerformance(true);
-    setErrorPerformance(null);
-    const queryParams = new URLSearchParams();
-    if (filter.month) queryParams.append('month', filter.month);
-    if (filter.year) queryParams.append('year', String(filter.year));
-    if (filter.staffId) queryParams.append('staffId', filter.staffId);
-    
-    try {
-      const response = await fetch(`/api/performance?${queryParams.toString()}`);
-      if (!response.ok) throw await handleApiResponseError(response, 'Failed to fetch performance records');
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error || 'API failed to fetch performance records');
-      
-      const mappedData = (result.data as PerformanceRecordAPIType[]).map(mapApiPerformanceToFE);
-      setPerformanceRecords(mappedData);
-
-    } catch (err) {
-      setErrorPerformance(err instanceof Error ? err.message : 'Unknown error fetching performance records');
-      console.error("Error fetching performance records:", err);
-    } finally {
-      setLoadingPerformance(false);
-    }
-  }, []);
-
-  const recordPerformance = useCallback(async (payload: NewPerformanceRecordPayload): Promise<void> => {
-      setErrorPerformance(null);
-      try {
-        const response = await fetch('/api/performance', { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(payload) 
-        });
-        
-        if (!response.ok) throw await handleApiResponseError(response, 'Failed to record performance');
-        
-        const result = await response.json();
-        
-        if (!result.success || !result.data) throw new Error(result.error || 'API failed to record performance');
-        
-        const newRecord = mapApiPerformanceToFE(result.data as PerformanceRecordAPIType);
-
-        setPerformanceRecords(prev => [...prev, newRecord].sort((a,b) => (b.year - a.year) || (months.indexOf(b.month) - months.indexOf(a.month)) ));
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : 'Unknown error recording performance';
-        setErrorPerformance(msg); 
-        console.error('Error recording performance:', error);
-        throw new Error(msg);
-      }
-  }, [months]);
-
-  // --- Salary Record Functions ---
-  const fetchSalaryRecords = useCallback(async (filter?: { staffId?: string; year?: number; month?: string; populateStaff?: 'true' | 'false' | boolean }) => { setLoadingSalary(true); setErrorSalary(null); let url = '/api/salary'; const queryParams = new URLSearchParams(); if (filter?.staffId) queryParams.append('staffId', filter.staffId); if (filter?.year) queryParams.append('year', String(filter.year)); if (filter?.month) queryParams.append('month', filter.month); if (filter?.populateStaff) queryParams.append('populateStaff', String(filter.populateStaff)); if (queryParams.toString()) { url += `?${queryParams.toString()}`; } try { const response = await fetch(url); if (!response.ok) throw await handleApiResponseError(response, 'Failed to fetch salary records'); const result = await response.json(); if (!result.success) throw new Error(result.error || 'API failed to fetch salary records'); setSalaryRecords((result.data as any[]).map(r => ({...r, id: r._id}))); } catch (err) { const error = err instanceof Error ? err : new Error('Unknown error fetching salary records'); setErrorSalary(error.message); console.error("Error fetching salary records:", error); setSalaryRecords([]); } finally { setLoadingSalary(false); } }, []);
-  const processSalary = useCallback(async (payload: ProcessSalaryPayload): Promise<SalaryRecordType> => { setLoadingSalary(true); setErrorSalary(null); try { const response = await fetch('/api/salary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); if (!response.ok) throw await handleApiResponseError(response, 'Failed to process salary record'); const result = await response.json(); if (!result.success || !result.data) throw new Error(result.error || 'API failed to process salary'); const processedRecordApi = result.data as any; const processedRecord = {...processedRecordApi, id: processedRecordApi._id}; setSalaryRecords(prev => { const index = prev.findIndex(r => r.id === processedRecord.id); if (index > -1) { const updated = [...prev]; updated[index] = processedRecord; return updated; } return [...prev, processedRecord]; }); return processedRecord; } catch (error) { const err = error instanceof Error ? error : new Error('Unknown error processing salary'); setErrorSalary(err.message); console.error('Error processing salary:', err); throw err; } finally { setLoadingSalary(false); } }, []);
-  const markSalaryAsPaid = useCallback(async (recordId: string, paidDate: string): Promise<SalaryRecordType> => { setLoadingSalary(true); setErrorSalary(null); try { const response = await fetch(`/api/salary/${recordId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isPaid: true, paidDate }) }); if (!response.ok) throw await handleApiResponseError(response, 'Failed to mark salary as paid'); const result = await response.json(); if (!result.success || !result.data) throw new Error(result.error || 'API failed to mark salary as paid'); const updatedRecordApi = result.data as any; const updatedRecord = {...updatedRecordApi, id: updatedRecordApi._id}; setSalaryRecords(prev => prev.map(r => (r.id === recordId ? updatedRecord : r))); return updatedRecord; } catch (error) { const err = error instanceof Error ? error : new Error ('Unknown error marking salary as paid'); setErrorSalary(err.message); console.error('Error marking salary as paid:', err); throw err; } finally { setLoadingSalary(false); } }, []);
 
   // --- useEffect for Initial Data Fetch ---
   useEffect(() => {
