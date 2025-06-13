@@ -1,26 +1,70 @@
 // models/appointment.ts
-import mongoose from 'mongoose';
+import mongoose, { Schema, model, models } from 'mongoose';
 
-const appointmentSchema = new mongoose.Schema({
-  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true },
-  style: { type: String, required: true },
-  stylist: { type: String, required: true },
+// Ensure Mongoose knows about the other models it needs to reference.
+import './stylist'; 
+import './service';
+import './customermodel';
 
-  date: { type: Date, required: true },
-  time: { type: String, required: true },
-  notes: { type: String },
+const appointmentSchema = new Schema({
+  customerId: { 
+    type: Schema.Types.ObjectId, 
+    ref: 'Customer', 
+    required: true 
+  },
+  
+  // This is the field that was missing or incorrect.
+  // It MUST be named 'serviceIds' and be an array of references.
+  serviceIds: [{ 
+    type: Schema.Types.ObjectId,
+    ref: 'Service',
+    required: [true, 'At least one service is required.']
+  }],
+  
+  stylistId: { 
+    type: Schema.Types.ObjectId, 
+    ref: 'Stylist',
+    required: true,
+    index: true
+  },
+  
+  date: { 
+    type: Date, 
+    required: true 
+  },
+  time: { 
+    type: String, 
+    required: true 
+  },
+  notes: { 
+    type: String 
+  },
   status: {
     type: String,
-    enum: ['Scheduled', 'Completed', 'Cancelled', 'No-Show', 'InProgress', 'Billed', 'Paid'],
+    enum: [
+      'Scheduled',
+      'Checked-In',
+      'Billed',
+      'Paid',
+      'Cancelled',
+      'No-Show'
+    ],
     default: 'Scheduled'
   },
-  invoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', index: true, sparse: true },
+  amount: {
+    type: Number 
+  },
+  invoiceId: { 
+    type: Schema.Types.ObjectId, 
+    ref: 'Invoice', // This name must exactly match your Invoice model name
+    index: true, // Good for performance
+  },
+  
 }, { timestamps: true });
 
-// ===> ADD THIS COMPOUND INDEX <===
-// This index is crucial for the performance of your API.
-// It allows MongoDB to quickly find all appointments for a customer
-// AND retrieve them already sorted by date and time.
-appointmentSchema.index({ customerId: 1, date: -1, time: -1 });
+// Indexes to speed up common database queries
+appointmentSchema.index({ stylistId: 1, date: 1 });
+appointmentSchema.index({ customerId: 1, date: -1 });
 
-export default mongoose.models.Appointment || mongoose.model('Appointment', appointmentSchema);
+const Appointment = models.Appointment || model('Appointment', appointmentSchema);
+export default Appointment;

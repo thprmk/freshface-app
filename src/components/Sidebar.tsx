@@ -33,6 +33,7 @@ const Sidebar = () => {
         </svg>
       )
     },
+   
     // Add other navigation items here if needed
   ];
 
