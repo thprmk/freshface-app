@@ -38,11 +38,11 @@ const Sidebar = () => {
       href: '/dashboard',
       label: 'Dashboard',
       icon: HomeIcon,
-      show: canAccessDashboard 
+      show: canAccessDashboard
     },
     {
       href: '/appointment',
-      label: 'Appointments',
+      label: 'Bookings',
       icon: CalendarDaysIcon,
       show: canAccessAppointments
     },
@@ -51,12 +51,6 @@ const Sidebar = () => {
       label: 'Customers',
       icon: UserGroupIcon,
       show: canAccessCustomers
-    },
-    {
-      href: '/billing',
-      label: 'Billing',
-      icon: CreditCardIcon,
-      show: canAccessBilling
     },
     {
       href: '/eb-upload',
@@ -112,16 +106,15 @@ const Sidebar = () => {
           {visibleNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || pathname.startsWith(item.href);
-            
+
             return (
               <Link
                 key={item.label}
                 href={item.href}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-gray-700 ${
-                  isActive
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-gray-700 ${isActive
                     ? 'bg-gray-100 text-black font-medium'
                     : 'hover:bg-gray-50 hover:text-black'
-                }`}
+                  }`}
               >
                 <Icon className="h-5 w-5" />
                 <span>{item.label}</span>
@@ -140,16 +133,15 @@ const Sidebar = () => {
               {visibleAdminItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href || pathname.startsWith(item.href);
-                
+
                 return (
                   <Link
                     key={item.label}
                     href={item.href}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-gray-700 ${
-                      isActive
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-gray-700 ${isActive
                         ? 'bg-gray-100 text-black font-medium'
                         : 'hover:bg-gray-50 hover:text-black'
-                    }`}
+                      }`}
                   >
                     <Icon className="h-5 w-5" />
                     <span>{item.label}</span>
