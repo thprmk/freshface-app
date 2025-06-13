@@ -72,6 +72,12 @@ export const PERMISSIONS = {
   EB_UPLOAD: 'eb:upload',
   EB_VIEW_CALCULATE: 'eb:view_calculate',
 
+  // Procurement management
+  PROCUREMENT_CREATE: 'procurement:create', // Create procurement records
+  PROCUREMENT_READ: 'procurement:read',   // View procurement records
+  PROCUREMENT_UPDATE: 'procurement:update', // Update procurement records
+  PROCUREMENT_DELETE: 'procurement:delete', // Delete procurement records
+
   ALL: '*'
 } as const;
 
@@ -87,7 +93,8 @@ export const PERMISSION_CATEGORIES = {
   INVENTORY_MANAGEMENT: 'Inventory Management',
   REPORTS_ACCESS: 'Reports Access',
   SETTINGS_MANAGEMENT: 'Settings Management',
-  EB_MANAGEMENT: 'EB Management'
+  EB_MANAGEMENT: 'EB Management',
+  PROCUREMENT_MANAGEMENT: 'Procurement Management' // New category
 } as const;
 
 export const ALL_PERMISSIONS = [
@@ -164,6 +171,12 @@ export const ALL_PERMISSIONS = [
   { permission: PERMISSIONS.EB_UPLOAD, description: 'Upload morning and evening meter images', category: PERMISSION_CATEGORIES.EB_MANAGEMENT },
   { permission: PERMISSIONS.EB_VIEW_CALCULATE, description: 'View meter images and calculate units/costs', category: PERMISSION_CATEGORIES.EB_MANAGEMENT },
 
+  // Procurement Management
+  { permission: PERMISSIONS.PROCUREMENT_CREATE, description: 'Create procurement records', category: PERMISSION_CATEGORIES.PROCUREMENT_MANAGEMENT },
+  { permission: PERMISSIONS.PROCUREMENT_READ, description: 'View procurement records', category: PERMISSION_CATEGORIES.PROCUREMENT_MANAGEMENT },
+  { permission: PERMISSIONS.PROCUREMENT_UPDATE, description: 'Update procurement records', category: PERMISSION_CATEGORIES.PROCUREMENT_MANAGEMENT },
+  { permission: PERMISSIONS.PROCUREMENT_DELETE, description: 'Delete procurement records', category: PERMISSION_CATEGORIES.PROCUREMENT_MANAGEMENT },
+
   // Super Admin
   { permission: PERMISSIONS.ALL, description: 'Full system access (Super Admin)', category: 'System Administration' }
 ];
@@ -220,7 +233,11 @@ export const ROLE_TEMPLATES = {
       PERMISSIONS.INVENTORY_MANAGE,
       PERMISSIONS.REPORTS_MANAGE,
       PERMISSIONS.SETTINGS_READ,
-      PERMISSIONS.EB_VIEW_CALCULATE
+      PERMISSIONS.EB_VIEW_CALCULATE,
+      PERMISSIONS.PROCUREMENT_CREATE, // Added
+      PERMISSIONS.PROCUREMENT_READ,   // Added
+      PERMISSIONS.PROCUREMENT_UPDATE, // Added
+      PERMISSIONS.PROCUREMENT_DELETE  // Added
     ]
   },
   MANAGER: {
@@ -235,7 +252,11 @@ export const ROLE_TEMPLATES = {
       PERMISSIONS.STAFF_READ,
       PERMISSIONS.INVENTORY_UPDATE,
       PERMISSIONS.REPORTS_READ,
-      PERMISSIONS.EB_UPLOAD
+      PERMISSIONS.EB_UPLOAD,
+      PERMISSIONS.PROCUREMENT_CREATE, // Added
+      PERMISSIONS.PROCUREMENT_READ,   // Added
+      PERMISSIONS.PROCUREMENT_UPDATE, // Added
+      PERMISSIONS.PROCUREMENT_DELETE  // Added
     ]
   },
   STAFF: {
@@ -248,7 +269,8 @@ export const ROLE_TEMPLATES = {
       PERMISSIONS.APPOINTMENTS_UPDATE,
       PERMISSIONS.DASHBOARD_READ,
       PERMISSIONS.SERVICES_READ,
-      PERMISSIONS.INVENTORY_READ
+      PERMISSIONS.INVENTORY_READ,
+      PERMISSIONS.PROCUREMENT_READ // Added
     ]
   },
   RECEPTIONIST: {

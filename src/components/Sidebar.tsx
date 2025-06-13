@@ -13,7 +13,8 @@ import {
   CogIcon,
   PowerIcon,
   LightBulbIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  ShoppingCartIcon
 } from '@heroicons/react/24/outline';
 
 const Sidebar = () => {
@@ -33,6 +34,7 @@ const Sidebar = () => {
   const canAccessRoles = session && hasPermission(session.user.role.permissions, PERMISSIONS.ROLES_READ);
   const canAccessEBUpload = session && hasPermission(session.user.role.permissions, PERMISSIONS.EB_UPLOAD);
   const canAccessEBViewCalculate = session && hasPermission(session.user.role.permissions, PERMISSIONS.EB_VIEW_CALCULATE);
+  const canAccessProcurement = session && hasPermission(session.user.role.permissions, PERMISSIONS.PROCUREMENT_READ);
 
   const navItems = [
     {
@@ -64,7 +66,13 @@ const Sidebar = () => {
       label: 'EB View & Calculate',
       icon: DocumentTextIcon,
       show: canAccessEBViewCalculate
-    }
+    },
+    {
+      href: '/procurement',
+      label: 'Procurements', // Changed from 'name' to 'label'
+      icon: ShoppingCartIcon,
+      show: canAccessProcurement // Changed from 'permission' to 'show'
+    },
   ];
 
   const adminItems = [
@@ -96,7 +104,7 @@ const Sidebar = () => {
           </div>
           <div>
             <h1 className="text-xl font-semibold text-gray-800">Fresh Face</h1>
-            <p className="text-xs text-gray-500">Salon Management</p>
+            <p className="text-xs text-gray-500">Food Management</p>
           </div>
         </div>
       </div>
