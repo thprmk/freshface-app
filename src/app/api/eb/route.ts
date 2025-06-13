@@ -108,7 +108,7 @@ export async function PUT(request: Request) {
     const { readingId, startUnits, endUnits, costPerUnit } = await request.json();
 
 
-    
+
 
     if (!readingId || startUnits === undefined || endUnits === undefined || costPerUnit === undefined) {
       return NextResponse.json({ success: false, message: 'All fields are required' }, { status: 400 });
