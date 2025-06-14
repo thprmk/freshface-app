@@ -20,10 +20,12 @@ interface DailyRecord {
 interface TargetPageData {
   summary: SummaryData; dailyRecords: DailyRecord[];
 }
+
+// --- FIX 1: Updated the currency formatter to remove decimals ---
 const formatCurrency = (value: number | undefined) => {
   if (value === undefined || value === null) return '₹0';
   return new Intl.NumberFormat('en-IN', {
-    style: 'currency', currency: 'INR', minimumFractionDigits: 0
+    style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 0 // This ensures rounding to the nearest rupee
   }).format(value);
 };
 
@@ -79,8 +81,7 @@ export default function TargetView({ initialData }: TargetViewProps) {
 
     // Destructure pageData for easier access in JSX. Handle potential null/undefined initialData.
     const summary = pageData?.summary || { target: {}, achieved: {}, headingTo: {} };
-    const dailyRecords = pageData?.dailyRecords || [];
-
+    
     // The return statement with all the JSX for your UI
     return (
         <div className="p-4 md:p-8 bg-gray-100 min-h-screen">
@@ -98,7 +99,7 @@ export default function TargetView({ initialData }: TargetViewProps) {
                             <div><label className="block text-gray-700 text-sm font-bold mb-2">Appointments Target</label><input type="number" name="appointmentsFromCallbacks" value={monthlyTargetForm.appointmentsFromCallbacks} onChange={handleMonthlyInputChange} className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required /></div>
                             <div className="md:col-span-2 flex items-center justify-end gap-4 mt-6">
                                 <button type="button" onClick={() => setIsMonthlyModalOpen(false)} className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">Cancel</button>
-                                <button type="submit" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Update Monthly Targets</button>
+                                <button type="submit" className="bg-gray-800 hover:bg-black text-white font-bold py-2 px-4 rounded">Update Monthly Targets</button>
                             </div>
                         </form>
                     </div>
@@ -109,7 +110,7 @@ export default function TargetView({ initialData }: TargetViewProps) {
 
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-semibold text-gray-700">Monthly Overview</h2>
-                <button onClick={() => setIsMonthlyModalOpen(true)} className="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow">Set Monthly Target</button>
+                <button onClick={() => setIsMonthlyModalOpen(true)} className="bg-gray-800 hover:bg-black text-white font-bold py-2 px-4 rounded-lg shadow">Set Monthly Target</button>
             </div>
             
             {/* --- COMPLETE MONTHLY OVERVIEW TABLE --- */}
@@ -118,48 +119,21 @@ export default function TargetView({ initialData }: TargetViewProps) {
                     <thead className="bg-gray-50 text-xs text-gray-700 uppercase">
                         <tr><th className="px-6 py-3">Metric</th><th className="px-6 py-3">Target</th><th className="px-6 py-3">Achieved</th><th className="px-6 py-3">Heading To</th><th className="px-6 py-3">In %</th></tr>
                     </thead>
+                    {/* --- FIX 2: Rounded all percentage and non-currency values --- */}
                     <tbody>
-                        <tr className="border-b"><td className="px-6 py-4 font-medium">SERVICE</td><td className="px-6 py-4">{formatCurrency(summary.target.service)}</td><td className="px-6 py-4">{formatCurrency(summary.achieved.service)}</td><td className="px-6 py-4">{formatCurrency(summary.headingTo.service)}</td><td className="px-6 py-4 font-bold">{summary.headingTo.serviceInPercentage || 0}%</td></tr>
-                        <tr className="border-b"><td className="px-6 py-4 font-medium">RETAIL</td><td className="px-6 py-4">{formatCurrency(summary.target.retail)}</td><td className="px-6 py-4">{formatCurrency(summary.achieved.retail)}</td><td className="px-6 py-4">{formatCurrency(summary.headingTo.retail)}</td><td className="px-6 py-4 font-bold">{summary.headingTo.retailInPercentage || 0}%</td></tr>
-                        <tr className="border-b"><td className="px-6 py-4 font-medium">NET SALES</td><td className="px-6 py-4">{formatCurrency(summary.target.netSales)}</td><td className="px-6 py-4">{formatCurrency(summary.achieved.netSales)}</td><td className="px-6 py-4">{formatCurrency(summary.headingTo.netSales)}</td><td className="px-6 py-4 font-bold">{summary.headingTo.netSalesInPercentage || 0}%</td></tr>
-                        <tr className="border-b"><td className="px-6 py-4 font-medium">BILLS</td><td className="px-6 py-4">{summary.target.bills || 0}</td><td className="px-6 py-4">{summary.achieved.bills || 0}</td><td className="px-6 py-4">{summary.headingTo.bills || 0}</td><td className="px-6 py-4 font-bold">{summary.headingTo.billsInPercentage || 0}%</td></tr>
-                        <tr className="border-b"><td className="px-6 py-4 font-medium">ABV</td><td className="px-6 py-4">{formatCurrency(summary.target.abv)}</td><td className="px-6 py-4">{formatCurrency(summary.achieved.abv)}</td><td className="px-6 py-4">{formatCurrency(summary.headingTo.abv)}</td><td className="px-6 py-4 font-bold">{summary.headingTo.abvInPercentage || 0}%</td></tr>
-                        <tr className="border-b"><td className="px-6 py-4 font-medium">CALLBACKS</td><td className="px-6 py-4">{summary.target.callbacks || 0}</td><td className="px-6 py-4">{summary.achieved.callbacks || 0}</td><td className="px-6 py-4">{summary.headingTo.callbacks || 0}</td><td className="px-6 py-4 font-bold">{summary.headingTo.callbacksInPercentage || 0}%</td></tr>
-                        <tr><td className="px-6 py-4 font-medium">APPOINTMENTS</td><td className="px-6 py-4">{summary.target.appointmentsFromCallbacks || 0}</td><td className="px-6 py-4">{summary.achieved.appointmentsFromCallbacks || 0}</td><td className="px-6 py-4">{summary.headingTo.appointmentsFromCallbacks || 0}</td><td className="px-6 py-4 font-bold">{summary.headingTo.appointmentsInPercentage || 0}%</td></tr>
+                        <tr className="border-b"><td className="px-6 py-4 font-medium">SERVICE</td><td className="px-6 py-4">{formatCurrency(summary.target.service)}</td><td className="px-6 py-4">{formatCurrency(summary.achieved.service)}</td><td className="px-6 py-4">{formatCurrency(summary.headingTo.service)}</td><td className="px-6 py-4 font-bold">{Math.round(summary.headingTo.serviceInPercentage || 0)}%</td></tr>
+                        <tr className="border-b"><td className="px-6 py-4 font-medium">RETAIL</td><td className="px-6 py-4">{formatCurrency(summary.target.retail)}</td><td className="px-6 py-4">{formatCurrency(summary.achieved.retail)}</td><td className="px-6 py-4">{formatCurrency(summary.headingTo.retail)}</td><td className="px-6 py-4 font-bold">{Math.round(summary.headingTo.retailInPercentage || 0)}%</td></tr>
+                        <tr className="border-b"><td className="px-6 py-4 font-medium">NET SALES</td><td className="px-6 py-4">{formatCurrency(summary.target.netSales)}</td><td className="px-6 py-4">{formatCurrency(summary.achieved.netSales)}</td><td className="px-6 py-4">{formatCurrency(summary.headingTo.netSales)}</td><td className="px-6 py-4 font-bold">{Math.round(summary.headingTo.netSalesInPercentage || 0)}%</td></tr>
+                        <tr className="border-b"><td className="px-6 py-4 font-medium">BILLS</td><td className="px-6 py-4">{summary.target.bills || 0}</td><td className="px-6 py-4">{summary.achieved.bills || 0}</td><td className="px-6 py-4">{Math.round(summary.headingTo.bills || 0)}</td><td className="px-6 py-4 font-bold">{Math.round(summary.headingTo.billsInPercentage || 0)}%</td></tr>
+                        <tr className="border-b"><td className="px-6 py-4 font-medium">ABV</td><td className="px-6 py-4">{formatCurrency(summary.target.abv)}</td><td className="px-6 py-4">{formatCurrency(summary.achieved.abv)}</td><td className="px-6 py-4">{formatCurrency(summary.headingTo.abv)}</td><td className="px-6 py-4 font-bold">{Math.round(summary.headingTo.abvInPercentage || 0)}%</td></tr>
+                        <tr className="border-b"><td className="px-6 py-4 font-medium">CALLBACKS</td><td className="px-6 py-4">{summary.target.callbacks || 0}</td><td className="px-6 py-4">{summary.achieved.callbacks || 0}</td><td className="px-6 py-4">{Math.round(summary.headingTo.callbacks || 0)}</td><td className="px-6 py-4 font-bold">{Math.round(summary.headingTo.callbacksInPercentage || 0)}%</td></tr>
+                        <tr><td className="px-6 py-4 font-medium">APPOINTMENTS</td><td className="px-6 py-4">{summary.target.appointmentsFromCallbacks || 0}</td><td className="px-6 py-4">{summary.achieved.appointmentsFromCallbacks || 0}</td><td className="px-6 py-4">{Math.round(summary.headingTo.appointmentsFromCallbacks || 0)}</td><td className="px-6 py-4 font-bold">{Math.round(summary.headingTo.appointmentsInPercentage || 0)}%</td></tr>
                     </tbody>
                 </table>
             </div>
 
-            <h2 className="text-2xl font-semibold text-gray-700 mb-4">Daily Breakdown</h2>
+            {/* --- FIX 3: Removed the entire "Daily Breakdown" section below --- */}
             
-            {/* --- COMPLETE DAILY BREAKDOWN TABLE --- */}
-            <div className="overflow-x-auto bg-white rounded-lg shadow">
-                 <table className="min-w-full text-sm text-left text-gray-600">
-                    <thead className="bg-gray-50 text-xs text-gray-700 uppercase">
-                        <tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Day</th><th className="px-4 py-3">Net Sales Achieved</th><th className="px-4 py-3">Achieve %</th><th className="px-4 py-3">Bills</th><th className="px-4 py-3">ABV Achieved</th><th className="px-4 py-3">Callbacks</th><th className="px-4 py-3">Appointments</th></tr>
-                    </thead>
-                    <tbody>
-                        {dailyRecords.map((record) => (
-                            <tr key={record.date} className="border-b hover:bg-gray-50">
-                                <td className="px-4 py-3 font-medium">{record.date}</td>
-                                <td className="px-4 py-3">{record.day}</td>
-                                <td className="px-4 py-3">{formatCurrency(record.netSalesAchieved)}</td>
-                                <td className="px-4 py-3 font-bold">{record.achievePercentage}%</td>
-                                <td className="px-4 py-3">{record.bills}</td>
-                                <td className="px-4 py-3">{formatCurrency(record.abvAchieved)}</td>
-                                <td className="px-4 py-3">{record.callbacksDone}</td>
-                                <td className="px-4 py-3">{record.appointmentsFromCallbacks}</td>
-                            </tr>
-                        ))}
-                         {/* If no daily records, show a message */}
-                         {dailyRecords.length === 0 && (
-                            <tr>
-                                <td colSpan={8} className="text-center py-4 text-gray-500">No daily records to display.</td>
-                            </tr>
-                         )}
-                    </tbody>
-                </table>
-            </div>
         </div>
     );
 }

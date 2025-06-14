@@ -6,11 +6,9 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Save, Upload, PlusCircle, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
 
-// Assuming these types are correctly defined and exported from context or a shared types file
 import { useStaff, StaffMember, UpdateStaffPayload, PositionOption } from '../../../../context/StaffContext';
 import Button from '../../../../components/ui/Button';
 
-// Local form data structure, mirroring StaffMember for edit
 interface EditStaffFormData {
   name: string;
   email: string;
@@ -19,12 +17,11 @@ interface EditStaffFormData {
   joinDate: string;
   salary: number;
   address: string;
-  image: string | null; // Match StaffMember.image
+  image: string | null;
   status: 'active' | 'inactive';
   aadharNumber: string;
 }
 
-// Using consistent generic SVG placeholder icon
 const DEFAULT_STAFF_IMAGE = `data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23d1d5db'%3e%3cpath fill-rule='evenodd' d='M18.685 19.097A9.723 9.723 0 0021.75 12c0-5.385-4.365-9.75-9.75-9.75S2.25 6.615 2.25 12a9.723 9.723 0 003.065 7.097A9.716 9.716 0 0012 21.75a9.716 9.716 0 006.685-2.653zm-12.54-1.285A7.486 7.486 0 0112 15a7.486 7.486 0 015.855 2.812A8.224 8.224 0 0112 20.25a8.224 8.224 0 01-5.855-2.438zM15.75 9a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z' clip-rule='evenodd' /%3e%3c/svg%3e`;
 
 const EditStaffContent: React.FC = () => {
@@ -34,7 +31,7 @@ const EditStaffContent: React.FC = () => {
 
   const {
     updateStaffMember,
-    positionOptions: contextPositionOptions = [], // Default to empty array
+    positionOptions: contextPositionOptions = [],
     addPositionOption
   } = useStaff();
 
@@ -77,7 +74,7 @@ const EditStaffContent: React.FC = () => {
           }
           const result = await response.json();
           if (result.success && result.data) {
-            const fetchedStaffData = result.data as StaffMember; // Assert type
+            const fetchedStaffData = result.data as StaffMember;
 
             setFormData({
               name: fetchedStaffData.name,
@@ -92,9 +89,8 @@ const EditStaffContent: React.FC = () => {
               aadharNumber: fetchedStaffData.aadharNumber || '',
             });
 
-            if (fetchedStaffData.position && !positionOptions.some(p => p.value.toLowerCase() === fetchedStaffData.position.toLowerCase())) {
+            if (fetchedStaffData.position && !contextPositionOptions.some(p => p.value.toLowerCase() === fetchedStaffData.position.toLowerCase())) {
                 const staffPositionOption = { value: fetchedStaffData.position, label: fetchedStaffData.position };
-                // addPositionOption is guaranteed by context type
                 addPositionOption(staffPositionOption);
             }
 
@@ -115,7 +111,7 @@ const EditStaffContent: React.FC = () => {
 
     fetchStaffData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [staffId, addPositionOption]); // positionOptions removed from deps if it's derived and can cause loops
+  }, [staffId, addPositionOption]);
 
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -131,9 +127,9 @@ const EditStaffContent: React.FC = () => {
   const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+      if (file.size > 2 * 1024 * 1024) {
           setError("Image size should not exceed 2MB.");
-          e.target.value = ''; // Clear the input
+          e.target.value = '';
           return;
       }
       const reader = new FileReader();
@@ -157,7 +153,7 @@ const EditStaffContent: React.FC = () => {
     }
 
     const newOption = { value: formattedNewPosition, label: formattedNewPosition };
-    addPositionOption(newOption); // Guaranteed by context type
+    addPositionOption(newOption);
     setFormData(prevData => ({ ...prevData, position: newOption.value }));
     setNewPositionName("");
     setShowAddPositionForm(false);
@@ -220,7 +216,7 @@ const EditStaffContent: React.FC = () => {
       return (
           <div className="p-6 text-center">
               <p className="text-red-500">{error}</p>
-              <Button onClick={() => router.push('/staffmanagement/staff/stafflist')} className="mt-4">
+              <Button variant="black" onClick={() => router.push('/staffmanagement/staff/stafflist')} className="mt-4">
                   Back to Staff List
               </Button>
           </div>
@@ -306,21 +302,22 @@ const EditStaffContent: React.FC = () => {
             </div>
           </div>
 
+          {/* --- CHANGE: Updated focus ring color to black --- */}
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Full Name*</label>
-            <input id="name" name="name" type="text" required value={formData.name} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100" disabled={isSubmitting || isLoadingData} />
+            <input id="name" name="name" type="text" required value={formData.name} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black disabled:bg-gray-100" disabled={isSubmitting || isLoadingData} />
           </div>
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email Address*</label>
-            <input id="email" name="email" type="email" required value={formData.email} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100" disabled={isSubmitting || isLoadingData} />
+            <input id="email" name="email" type="email" required value={formData.email} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black disabled:bg-gray-100" disabled={isSubmitting || isLoadingData} />
           </div>
           <div>
             <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">Phone Number*</label>
-            <input id="phone" name="phone" type="tel" required value={formData.phone} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100" disabled={isSubmitting || isLoadingData} />
+            <input id="phone" name="phone" type="tel" required value={formData.phone} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black disabled:bg-gray-100" disabled={isSubmitting || isLoadingData} />
           </div>
            <div>
             <label htmlFor="aadharNumber" className="block text-sm font-medium text-gray-700 mb-1">Aadhar Number</label>
-            <input id="aadharNumber" name="aadharNumber" type="text" pattern="\d{12}" title="Aadhar number must be 12 digits" maxLength={12} value={formData.aadharNumber} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100" disabled={isSubmitting || isLoadingData}/>
+            <input id="aadharNumber" name="aadharNumber" type="text" pattern="\d{12}" title="Aadhar number must be 12 digits" maxLength={12} value={formData.aadharNumber} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black disabled:bg-gray-100" disabled={isSubmitting || isLoadingData}/>
           </div>
 
           <div>
@@ -332,7 +329,7 @@ const EditStaffContent: React.FC = () => {
                 required
                 value={formData.position}
                 onChange={handleInputChange}
-                className="flex-grow w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100"
+                className="flex-grow w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black disabled:bg-gray-100"
                 disabled={isSubmitting || showAddPositionForm || isLoadingData}
               >
                 {positionOptions.map(option => (
@@ -341,7 +338,7 @@ const EditStaffContent: React.FC = () => {
                   </option>
                 ))}
               </select>
-              {!showAddPositionForm && ( /* Removed redundant check */
+              {!showAddPositionForm && (
                 <Button
                   type="button"
                   variant="ghost"
@@ -349,7 +346,7 @@ const EditStaffContent: React.FC = () => {
                   onClick={() => setShowAddPositionForm(true)}
                   disabled={isSubmitting || isLoadingData}
                   title="Add New Position"
-                  className="p-2 text-gray-600 hover:text-purple-600"
+                  className="p-2 text-gray-600 hover:text-black"
                 />
               )}
             </div>
@@ -366,15 +363,16 @@ const EditStaffContent: React.FC = () => {
                         if(newPositionError) setNewPositionError(null);
                     }}
                     placeholder="Enter position name"
-                    className="flex-grow w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm text-black focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
+                    className="flex-grow w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black"
                     disabled={isSubmitting || isLoadingData}
                   />
                   <Button
                     type="button"
+                    variant="primary"
+                    size="sm"
                     onClick={handleAddNewPosition}
                     disabled={isSubmitting || !newPositionName.trim() || isLoadingData}
-                    className="text-sm py-1.5 px-3 bg-purple-500 text-white hover:bg-purple-600 rounded-md"
-                  > Add </Button>
+                  >Add</Button>
                   <Button
                     type="button"
                     variant="ghost"
@@ -396,19 +394,19 @@ const EditStaffContent: React.FC = () => {
 
           <div>
             <label htmlFor="joinDate" className="block text-sm font-medium text-gray-700 mb-1">Join Date*</label>
-            <input id="joinDate" name="joinDate" type="date" required value={formData.joinDate} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100" disabled={isSubmitting || isLoadingData} />
+            <input id="joinDate" name="joinDate" type="date" required value={formData.joinDate} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black disabled:bg-gray-100" disabled={isSubmitting || isLoadingData} />
           </div>
           <div>
             <label htmlFor="salary" className="block text-sm font-medium text-gray-700 mb-1">Monthly Salary (₹)*</label>
-            <input id="salary" name="salary" type="number" required min="0" step="any" value={formData.salary} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100" disabled={isSubmitting || isLoadingData} />
+            <input id="salary" name="salary" type="number" required min="0" step="any" value={formData.salary} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black disabled:bg-gray-100" disabled={isSubmitting || isLoadingData} />
           </div>
           <div className="md:col-span-2">
             <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-            <textarea id="address" name="address" rows={3} value={formData.address} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100" disabled={isSubmitting || isLoadingData}></textarea>
+            <textarea id="address" name="address" rows={3} value={formData.address} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black disabled:bg-gray-100" disabled={isSubmitting || isLoadingData}></textarea>
           </div>
           <div>
             <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select id="status" name="status" value={formData.status} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100" disabled={isSubmitting || isLoadingData}>
+            <select id="status" name="status" value={formData.status} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black disabled:bg-gray-100" disabled={isSubmitting || isLoadingData}>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </select>
@@ -416,9 +414,10 @@ const EditStaffContent: React.FC = () => {
         </div>
 
         <div className="mt-8 flex justify-end space-x-3">
+          {/* --- CHANGE: Cancel button is now red, Save button is now black --- */}
           <Button
             type="button"
-            variant="outline"
+            variant="outline-danger"
             onClick={() => router.push(`/staffmanagement/staff/staffdetail?staffId=${staffId}`)}
             disabled={isSubmitting || isLoadingData}
           >
@@ -426,6 +425,7 @@ const EditStaffContent: React.FC = () => {
           </Button>
           <Button
             type="submit"
+            variant="black"
             icon={<Save size={16} />}
             disabled={isSubmitting || isLoadingData}
             isLoading={isSubmitting}

@@ -1,136 +1,150 @@
 // src/app/api/performance/route.ts
-
 import { NextResponse } from 'next/server';
-import dbConnect from '@/lib/mongodb'; 
-import Performance from '@/models/performance'; 
-import Staff from '@/models/staff'; 
-// ✅ STEP 1: Import the TargetData model to update it
-import TargetData from '@/models/TargetSheet'; 
+import dbConnect from '@/lib/mongodb';
+import DailySale from '@/models/DailySale';
+import { NextRequest } from 'next/server';
 
-// --- GET: Fetch all performance records (No changes needed here) ---
-export async function GET(req: Request) {
+const MONTHLY_TARGET_MULTIPLIER = 3.0;
+
+export async function GET(request: NextRequest) {
   try {
     await dbConnect();
-    const { searchParams } = new URL(req.url);
 
+    const { searchParams } = new URL(request.url);
     const month = searchParams.get('month');
     const year = searchParams.get('year');
 
-    const filter: any = {};
-    if (month) filter.month = month;
-    if (year) filter.year = parseInt(year, 10);
-
-    const records = await Performance.find(filter)
-      .populate({
-        path: 'staffId',
-        model: Staff,
-        select: 'name position image'
-      })
-      .sort({ year: -1, 'metrics.rating': -1 });
-
-    return NextResponse.json({ success: true, data: records });
-  } catch (error: any) {
-    console.error("API GET Error:", error);
-    return NextResponse.json({ success: false, error: "Server Error: " + error.message }, { status: 500 });
-  }
-}
-
-// --- POST: Create a new performance record AND update the target sheet ---
-export async function POST(req: Request) {
-  try {
-    await dbConnect();
-    const body = await req.json();
-
-    const { staffId, month, year, metrics } = body;
-
-    // Prevent duplicate records for the same staff member in the same month/year
-    const existingRecord = await Performance.findOne({ staffId, month, year });
-    if (existingRecord) {
-      return NextResponse.json(
-        { success: false, error: `A performance record for this staff member already exists for ${month} ${year}.` },
-        { status: 409 } // 409 Conflict
-      );
+    if (!month || !year) {
+      return NextResponse.json({ message: 'Month and year query parameters are required.' }, { status: 400 });
     }
-    
-    const newRecord = await Performance.create(body);
 
-    // ✅ =================================================================
-    // ✅ STEP 2: AUTOMATICALLY UPDATE THE TARGET DATA SHEET
-    // ✅ =================================================================
-    try {
-      // Find the most recent target document to update.
-      const targetDoc = await TargetData.findOne().sort({ createdAt: -1 });
+    // JS months are 0-indexed, so we subtract 1
+    const monthIndex = parseInt(month, 10) - 1; 
+    const numericYear = parseInt(year, 10);
 
-      if (targetDoc) {
-        // --- 1. Update the "Achieved" values ---
-        const { achieved, target, headingTo } = targetDoc.summary;
+    if (isNaN(monthIndex) || isNaN(numericYear) || monthIndex < 0 || monthIndex > 11) {
+        return NextResponse.json({ message: 'Invalid month or year provided.' }, { status: 400 });
+    }
 
-        // ASSUMPTION: 'salesGenerated' from performance maps to 'service' sales in target.
-        // ASSUMPTION: 'customersServed' maps to 'bills'.
-        achieved.service = (achieved.service || 0) + metrics.salesGenerated;
-        achieved.bills = (achieved.bills || 0) + metrics.customersServed;
-        // Recalculate Net Sales and ABV based on the new totals
-        achieved.netSales = (achieved.service || 0) + (achieved.retail || 0);
-        achieved.abv = achieved.bills > 0 ? achieved.netSales / achieved.bills : 0;
+    const startDate = new Date(numericYear, monthIndex, 1);
+    const endDate = new Date(numericYear, monthIndex + 1, 0, 23, 59, 59);
 
-        // --- 2. Recalculate "Heading To" projections ---
-        const now = new Date();
-        const dayOfMonth = now.getDate();
-        // Get the number of days in the month of the performance record
-        const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-        const daysInMonth = new Date(year, months.indexOf(month) + 1, 0).getDate();
-
-        if (dayOfMonth > 0 && daysInMonth > 0) {
-            const projectionFactor = daysInMonth / dayOfMonth;
-            
-            headingTo.service = achieved.service * projectionFactor;
-            headingTo.retail = achieved.retail * projectionFactor; // Retail is projected even if not updated today
-            headingTo.netSales = achieved.netSales * projectionFactor;
-            headingTo.bills = achieved.bills * projectionFactor;
-            headingTo.callbacks = achieved.callbacks * projectionFactor;
-            // ABV is not projected, it's a direct calculation
-            headingTo.abv = achieved.abv; 
-
-            // --- 3. Recalculate "In %" values ---
-            headingTo.serviceInPercentage = target.service > 0 ? (headingTo.service / target.service) * 100 : 0;
-            headingTo.retailInPercentage = target.retail > 0 ? (headingTo.retail / target.retail) * 100 : 0;
-            headingTo.netSalesInPercentage = target.netSales > 0 ? (headingTo.netSales / target.netSales) * 100 : 0;
-            headingTo.billsInPercentage = target.bills > 0 ? (headingTo.bills / target.bills) * 100 : 0;
-            headingTo.abvInPercentage = target.abv > 0 ? (headingTo.abv / target.abv) * 100 : 0;
-            headingTo.callbacksInPercentage = target.callbacks > 0 ? (headingTo.callbacks / target.callbacks) * 100 : 0;
-            // ...and so on for any other percentage fields
+    const staffPerformance = await DailySale.aggregate([
+      // 1. Filter sales records for the selected month and year
+      { 
+        $match: { date: { $gte: startDate, $lte: endDate } } 
+      },
+      // 2. Group by staff to sum up their sales and customer counts
+      {
+        $group: {
+          _id: '$staff',
+          totalSales: { $sum: { $add: ['$serviceSale', '$productSale'] } },
+          totalCustomers: { $sum: '$customerCount' },
+        },
+      },
+      // 3. Join with the 'staffs' collection to get staff details
+      {
+        $lookup: { 
+          from: 'staffs', 
+          localField: '_id', 
+          foreignField: '_id', 
+          as: 'staffDetails' 
         }
+      },
+      // 4. Deconstruct the staffDetails array to a single object
+      { 
+        $unwind: '$staffDetails' 
+      },
+      // 5. Project the final fields and calculate the rating
+      {
+        $project: {
+          _id: 0,
+          staffId: '$_id',
+          name: '$staffDetails.name',
+          position: '$staffDetails.position',
+          image: '$staffDetails.image',
+          sales: '$totalSales',
+          customers: '$totalCustomers',
+          
+          rating: {
+            // Round the final result to 1 decimal place
+            $round: [
+              {
+                $let: {
+                  vars: {
+                    // Safely convert salary to a number.
+                    salaryAsNumber: {
+                      $convert: {
+                        input: '$staffDetails.salary',
+                        to: 'double',
+                        onError: 0.0,
+                        onNull: 0.0
+                      }
+                    },
+                    actualSales: { $ifNull: ['$totalSales', 0] }
+                  },
+                  in: {
+                    $let: {
+                      vars: {
+                        // Ensure target is at least 1 to prevent division by zero.
+                        monthlyTarget: { $max: [1, { $multiply: ['$$salaryAsNumber', MONTHLY_TARGET_MULTIPLIER] }] }
+                      },
+                      in: {
+                        $cond: {
+                          if: { $eq: ['$$actualSales', 0] },
+                          then: 0,
+                          else: {
+                            $min: [ // Cap the rating at a maximum of 10
+                              10,
+                              { $multiply: [{ $divide: ['$$actualSales', '$$monthlyTarget'] }, 5] }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              1 // Round to 1 decimal place
+            ]
+          }
+        },
+      },
+      // 6. Sort the results alphabetically by staff name
+      { $sort: { name: 1 } }
+    ]);
 
-        // --- 4. Save the updated target document ---
-        await targetDoc.save();
-        console.log(`Successfully updated target sheet for ${month} ${year}.`);
+    // Calculate the overall summary statistics for the dashboard cards
+    const summary = staffPerformance.reduce(
+      (acc, staff) => {
+        acc.revenueGenerated += staff.sales;
+        acc.totalCustomers += staff.customers;
+        if (staff.rating > 0) {
+            acc.totalRatingPoints += staff.rating;
+            acc.validRatingsCount += 1;
+        }
+        return acc;
+      },
+      { revenueGenerated: 0, totalCustomers: 0, totalRatingPoints: 0, validRatingsCount: 0 }
+    );
+    
+    const overallAverageRating = summary.validRatingsCount > 0 
+      ? (summary.totalRatingPoints / summary.validRatingsCount) 
+      : 0;
 
-      } else {
-        console.warn("No target document found to update.");
-      }
-    } catch (targetUpdateError) {
-      // Log the error but don't fail the main request. The performance record was still saved.
-      console.error("Failed to automatically update target sheet:", targetUpdateError);
-    }
-    // ✅ =================================================================
-    // ✅ END OF TARGET UPDATE LOGIC
-    // ✅ =================================================================
-
-
-    // Populate the new record before sending it back to the client (original logic)
-    const populatedRecord = await Performance.findById(newRecord._id).populate({
-      path: 'staffId',
-      model: Staff,
-      select: 'name position image'
+    return NextResponse.json({ 
+        summary: {
+            averageRating: parseFloat(overallAverageRating.toFixed(1)),
+            totalCustomers: summary.totalCustomers,
+            revenueGenerated: summary.revenueGenerated,
+            // ✅ FIX: Corrected the variable name here
+            avgServiceQuality: parseFloat(overallAverageRating.toFixed(1))
+        },
+        staffPerformance: staffPerformance 
     });
 
-    return NextResponse.json({ success: true, data: populatedRecord }, { status: 201 });
-
   } catch (error: any) {
-     console.error("API POST Error:", error);
-     if (error.name === 'ValidationError') {
-        return NextResponse.json({ success: false, error: error.message }, { status: 400 });
-     }
-    return NextResponse.json({ success: false, error: "Server Error: " + error.message }, { status: 500 });
+    console.error("API GET /performance Error:", error);
+    return NextResponse.json({ message: 'An internal server error occurred', error: error.message }, { status: 500 });
   }
 }

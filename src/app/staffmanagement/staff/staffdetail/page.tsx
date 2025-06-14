@@ -29,7 +29,7 @@ const StaffDetailsContent: React.FC = () => {
     getStaffById,
     attendanceRecordsFE,
     performanceRecords,
-    fetchPerformanceRecords, // To fetch records for this specific staff member
+    fetchPerformanceRecords,
   } = useStaff();
 
   const [staff, setStaff] = useState<StaffMember | null | undefined>(undefined);
@@ -38,7 +38,6 @@ const StaffDetailsContent: React.FC = () => {
   const [staffAttendance, setStaffAttendance] = useState<AttendanceRecord[]>([]);
 
   useEffect(() => {
-    // This effect now fetches fresh data for the specific staff member
     const fetchStaffDetails = async () => {
       if (!staffIdFromQuery) {
         setError("Staff ID is missing in the URL.");
@@ -50,13 +49,8 @@ const StaffDetailsContent: React.FC = () => {
       setError(null);
       try {
         const staffData = getStaffById(staffIdFromQuery);
-        // If staff is in context, use it. Otherwise, you might need a direct API fetch.
-        // For simplicity, we assume context is the source of truth for the staff member details.
         if (staffData) {
             setStaff(staffData);
-            // After setting staff, fetch their performance records
-            // Here we assume fetchPerformanceRecords can filter by staffId, month, and year.
-            // Let's fetch all records for the current year for simplicity.
             await fetchPerformanceRecords({ month: '', year: new Date().getFullYear(), staffId: staffIdFromQuery });
         } else {
              throw new Error('Staff member not found in context.');
@@ -73,27 +67,25 @@ const StaffDetailsContent: React.FC = () => {
   }, [staffIdFromQuery, getStaffById, fetchPerformanceRecords]);
 
 
-  // Filter attendance after staff and attendanceRecordsFE are available
   useEffect(() => {
     if (staff && attendanceRecordsFE) {
       const filteredAttendance = (attendanceRecordsFE || [])
         .filter((record: AttendanceRecord) => record.staff.id === staff.id)
         .sort((a: AttendanceRecord, b: AttendanceRecord) => b.date.getTime() - a.date.getTime())
-        .slice(0, 7); // Get the 7 most recent records
+        .slice(0, 7);
       setStaffAttendance(filteredAttendance);
     }
   }, [staff, attendanceRecordsFE]);
 
 
   if (isLoading) return <div className="p-6 text-center">Loading staff details...</div>;
-  if (error && !staff) return <div className="p-6 text-center"><p className="text-red-500">{error}</p><Button onClick={() => router.push('/staffmanagement/staff/stafflist')} className="mt-4">Back to List</Button></div>;
-  if (!staff) return <div className="flex flex-col items-center justify-center min-h-[60vh] p-4"><h2 className="text-xl font-bold text-gray-800 mb-2">Staff Not Found</h2><p className="text-gray-600 mb-6 text-center">ID: {staffIdFromQuery || 'N/A'}</p><Button onClick={() => router.push('/staffmanagement/staff/stafflist')}>Back to List</Button></div>;
+  // --- CHANGE: Button variant is now "black" ---
+  if (error && !staff) return <div className="p-6 text-center"><p className="text-red-500">{error}</p><Button variant="black" onClick={() => router.push('/staffmanagement/staff/stafflist')} className="mt-4">Back to List</Button></div>;
+  if (!staff) return <div className="flex flex-col items-center justify-center min-h-[60vh] p-4"><h2 className="text-xl font-bold text-gray-800 mb-2">Staff Not Found</h2><p className="text-gray-600 mb-6 text-center">ID: {staffIdFromQuery || 'N/A'}</p><Button variant="black" onClick={() => router.push('/staffmanagement/staff/stafflist')}>Back to List</Button></div>;
 
-  // ✅ FIX: The comparison is now correct (record.staffId.id === staff.id)
   const latestPerformance: PerformanceRecord | undefined = (performanceRecords || [])
     .filter((record: PerformanceRecord) => record.staffId.id === staff.id)
     .sort((a: PerformanceRecord, b: PerformanceRecord) => {
-      // Assuming a month name like "January", "February" etc.
       const monthIndexA = new Date(Date.parse(a.month +" 1, 2000")).getMonth();
       const monthIndexB = new Date(Date.parse(b.month +" 1, 2000")).getMonth();
       const dateA = new Date(a.year, monthIndexA);
@@ -101,12 +93,11 @@ const StaffDetailsContent: React.FC = () => {
       return dateB.getTime() - dateA.getTime();
     })[0];
 
-  // Prepare the last 7 calendar days for display
   const lastSevenDays = Array.from({ length: 7 }).map((_, index) => {
     const date = new Date();
     date.setDate(date.getDate() - index);
     return startOfDay(date);
-  }).reverse(); // To have today as the last element
+  }).reverse();
 
   return (
     <div className="space-y-6 p-4 md:p-6 bg-gray-50 min-h-screen">
@@ -115,7 +106,8 @@ const StaffDetailsContent: React.FC = () => {
           <Button variant="outline" icon={<ArrowLeft size={16} />} onClick={() => router.push('/staffmanagement/staff/stafflist')} className="mr-4">Back</Button>
           <h1 className="text-xl md:text-2xl font-bold text-gray-800">Staff Details</h1>
         </div>
-        <Button icon={<Edit size={16} />} onClick={() => router.push(`/staffmanagement/staff/editstaff?staffId=${staff.id}`)} className="mt-4 md:mt-0">Edit Profile</Button>
+        {/* --- CHANGE: Button variant is now "black" --- */}
+        <Button variant="black" icon={<Edit size={16} />} onClick={() => router.push(`/staffmanagement/staff/editstaff?staffId=${staff.id}`)} className="mt-4 md:mt-0">Edit Profile</Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -183,7 +175,8 @@ const StaffDetailsContent: React.FC = () => {
                 </div>
               ) : (<p className="text-sm text-gray-500 text-center py-4">No recent attendance data for this staff.</p>)}
               <div className="flex justify-end items-center mt-2">
-                <Link href={`/staffmanagement/attendance?staffId=${staff.id}`} className="text-sm text-purple-600 hover:text-purple-800 font-medium">View Full History</Link>
+                {/* --- CHANGE: Link color is now black --- */}
+                <Link href={`/staffmanagement/attendance?staffId=${staff.id}`} className="text-sm text-black hover:text-gray-700 font-medium">View Full History</Link>
               </div>
             </div>
           </Card>
@@ -199,10 +192,11 @@ const StaffDetailsContent: React.FC = () => {
                 {latestPerformance.comments && (<div><p className="text-sm text-gray-600 mb-1 font-medium">Comments:</p><p className="text-sm bg-gray-50 p-3 rounded-md whitespace-pre-wrap border border-gray-200">{latestPerformance.comments}</p></div>)}
                 <div className="flex justify-between items-center pt-2 border-t border-gray-200 mt-4">
                   <div className="flex items-center text-sm text-gray-500"><CalendarClock className="h-4 w-4 mr-1.5 shrink-0" /><span>{format(new Date(latestPerformance.year, new Date(Date.parse(latestPerformance.month +" 1, 2000")).getMonth()), 'MMMM yyyy')}</span></div>
-                  <Link href={`/staffmanagement/performance?staffId=${staff.id}`} className="text-sm text-purple-600 hover:text-purple-800 font-medium flex items-center"><span>Full History</span><BarChart3 className="ml-1.5 h-4 w-4 shrink-0" /></Link>
+                  {/* --- CHANGE: Link color is now black --- */}
+                  <Link href={`/staffmanagement/performance?staffId=${staff.id}`} className="text-sm text-black hover:text-gray-700 font-medium flex items-center"><span>Full History</span><BarChart3 className="ml-1.5 h-4 w-4 shrink-0" /></Link>
                 </div>
               </div>
-            ) : (<div className="text-center py-8"><BarChart3 className="h-12 w-12 text-gray-300 mx-auto mb-3" /><p className="text-gray-500">No performance data.</p><Link href={`/staffmanagement/performance/add?staffId=${staff.id}`} className="mt-3 inline-block text-sm text-purple-600 hover:text-purple-800 font-medium">Add Record</Link></div>)}
+            ) : (<div className="text-center py-8"><BarChart3 className="h-12 w-12 text-gray-300 mx-auto mb-3" /><p className="text-gray-500">No performance data.</p><Link href={`/staffmanagement/performance/add?staffId=${staff.id}`} className="mt-3 inline-block text-sm text-black hover:text-gray-700 font-medium">Add Record</Link></div>)}
           </Card>
         </div>
       </div>

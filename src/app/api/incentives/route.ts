@@ -1,17 +1,23 @@
-// src/app/api/incentives/route.ts
-
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
-import DailySale from '@/models/DailySale'; // Make sure this path is correct
-import Staff from '@/models/staff';       // Make sure this path is correct
+import DailySale from '@/models/DailySale';
+import Staff from '@/models/staff';
 
-// This POST function will handle requests to '/api/incentives'
 export async function POST(request: Request) {
   try {
     await dbConnect();
     
     const body = await request.json();
-    const { staffId, date, serviceSale, productSale, reviewsWithName, reviewsWithPhoto } = body;
+    const { 
+      staffId, 
+      date, 
+      serviceSale = 0,
+      productSale = 0,
+      customerCount = 0,
+      totalRating = 0,
+      reviewsWithName = 0,
+      reviewsWithPhoto = 0
+    } = body;
 
     if (!staffId || !date) {
       return NextResponse.json({ message: 'Staff ID and date are required.' }, { status: 400 });
@@ -25,20 +31,30 @@ export async function POST(request: Request) {
     const targetDate = new Date(date);
     targetDate.setHours(0, 0, 0, 0);
 
-    const dailySaleRecord = await DailySale.findOneAndUpdate(
-      { staff: staffId, date: targetDate },
+    const updatedRecord = await DailySale.findOneAndUpdate(
       { 
-        $set: { 
-            serviceSale, 
-            productSale, 
-            reviewsWithName, 
-            reviewsWithPhoto 
+        staff: staffId, 
+        date: targetDate 
+      },
+      { 
+        $inc: { 
+          serviceSale: serviceSale, 
+          productSale: productSale, 
+          customerCount: customerCount,
+          totalRating: totalRating,
+          reviewsWithName: reviewsWithName,
+          reviewsWithPhoto: reviewsWithPhoto,
+          reviewCount: (reviewsWithName || 0) + (reviewsWithPhoto || 0)
         } 
       },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
+      { 
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true
+      }
     );
 
-    return NextResponse.json({ message: 'Daily sale logged successfully', data: dailySaleRecord }, { status: 201 });
+    return NextResponse.json({ message: 'Daily data updated successfully', data: updatedRecord }, { status: 200 });
 
   } catch (error: any) {
     console.error("API POST /api/incentives Error:", error);

@@ -11,8 +11,9 @@ export interface IAttendance extends Document {
   temporaryExits: Types.ObjectId[];
   totalWorkingMinutes: number;
   isWorkComplete: boolean;
+  requiredMinutes: number; // <-- NEW: To store the day's required work minutes for historical accuracy
   notes?: string;
-  overtimeHours: number; // <-- The new field
+  overtimeHours: number;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -31,8 +32,10 @@ const AttendanceSchema: Schema<IAttendance> = new Schema(
     temporaryExits: [{ type: Schema.Types.ObjectId, ref: 'TemporaryExit' }],
     totalWorkingMinutes: { type: Number, default: 0 },
     isWorkComplete: { type: Boolean, default: false },
+    // v-- FIELD ADDED --v
+    requiredMinutes: { type: Number, default: 540 }, // Default to 9 hours (9 * 60)
     notes: { type: String, trim: true },
-    overtimeHours: { type: Number, default: 0 }, // <-- The new field with a default value
+    overtimeHours: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

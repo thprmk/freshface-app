@@ -101,7 +101,7 @@ const AdvancePayment: React.FC = () => {
         <h1 className="text-2xl md:text-3xl font-bold text-gray-700">Advance Payment</h1>
         <button
           onClick={() => setShowNewRequestForm(!showNewRequestForm)}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-75 transition-colors"
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg shadow-md hover:bg-black focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-opacity-75 transition-colors"
         >
           <Plus size={20} />
           New Advance Request
@@ -119,7 +119,7 @@ const AdvancePayment: React.FC = () => {
               <div>
                 <label htmlFor="staffId" className="block text-sm font-medium text-gray-600 mb-1">Staff Member*</label>
                 <select id="staffId" name="staffId" required value={formData.staffId} onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 text-gray-900">
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-500 focus:border-gray-800 text-gray-900">
                   <option value="">Select Staff</option>
                   {staffMembers.filter(s => s.status === 'active').map((staff) => (
                     <option key={staff.id} value={staff.id}>{staff.name} - {staff.position}</option>
@@ -129,12 +129,12 @@ const AdvancePayment: React.FC = () => {
               <div>
                 <label htmlFor="amount" className="block text-sm font-medium text-gray-600 mb-1">Amount (₹)*</label>
                 <input id="amount" name="amount" type="number" required min="1" step="0.01" value={formData.amount <= 0 ? '' : formData.amount} onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 text-gray-900"/>
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-500 focus:border-gray-800 text-gray-900"/>
               </div>
               <div className="md:col-span-2">
                  <label htmlFor="reason" className="block text-sm font-medium text-gray-600 mb-1">Reason for Advance*</label>
                  <textarea id="reason" name="reason" rows={3} required value={formData.reason} onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 text-gray-900 placeholder:text-gray-400"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-gray-500 focus:border-gray-800 text-gray-900 placeholder:text-gray-400"
                   placeholder="e.g., Medical emergency, family event..."/>
               </div>
             </div>
@@ -142,7 +142,7 @@ const AdvancePayment: React.FC = () => {
               <button type="button" onClick={() => setShowNewRequestForm(false)} disabled={isSubmitting}
                 className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300">Cancel</button>
               <button type="submit" disabled={isSubmitting}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-purple-300">
+                className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-black disabled:bg-gray-400">
                 <Wallet size={16} />
                 {isSubmitting ? 'Submitting...' : 'Submit Request'}
               </button>

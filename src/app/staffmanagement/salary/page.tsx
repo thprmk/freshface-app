@@ -1,4 +1,5 @@
 'use client';
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   IndianRupee, Calendar, Search, Download,
@@ -19,7 +20,6 @@ interface StaffMember {
   position: string;
   status: 'active' | 'inactive';
   salary: number;
-  otRatePerHour?: number;
 }
 
 interface SalaryRecordType {
@@ -49,6 +49,11 @@ interface SalaryInputs {
   foodDeduction: string;
   recurExpense: string;
 }
+
+interface ShopSettings {
+  defaultOtRate: number;
+  defaultExtraDayRate: number;
+}
 // --- End Type Definitions ---
 
 const Salary: React.FC = () => {
@@ -70,7 +75,8 @@ const Salary: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [processingStaff, setProcessingStaff] = useState<StaffMember | null>(null);
   const [salaryInputs, setSalaryInputs] = useState<SalaryInputs>({ otHours: '0', extraDays: '0', foodDeduction: '0', recurExpense: '0' });
-  const [isFetchingOt, setIsFetchingOt] = useState(false);
+  const [isModalLoading, setIsModalLoading] = useState(false);
+  const [shopSettings, setShopSettings] = useState<ShopSettings | null>(null);
 
   const months = useMemo(() => ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'], []);
   const years = useMemo(() => {
@@ -87,23 +93,25 @@ const Salary: React.FC = () => {
     stableFetchSalaryRecords({ month: months[currentMonthIndex], year: currentYear, populateStaff: 'true' });
   }, [currentMonthIndex, currentYear, stableFetchSalaryRecords, months]);
   
-  const staffWithDefaults = useMemo(() => staffMembers.map(s => ({...s, otRatePerHour: (s as any).otRatePerHour || 50})), [staffMembers]);
-  const filteredStaff = staffWithDefaults.filter(staff => staff.name.toLowerCase().includes(searchTerm.toLowerCase()) && staff.status === 'active');
+  const filteredStaff = useMemo(() => staffMembers.filter(staff => staff.name.toLowerCase().includes(searchTerm.toLowerCase()) && staff.status === 'active'), [staffMembers, searchTerm]);
 
   const openProcessingModal = async (staff: StaffMember) => {
     setProcessingStaff(staff);
     setIsModalOpen(true);
-    setIsFetchingOt(true);
+    setIsModalLoading(true);
 
     try {
-      const response = await fetch(
-        `/api/attendance?action=getOvertimeTotal&staffId=${staff.id}&year=${currentYear}&month=${months[currentMonthIndex]}`
-      );
-      const result = await response.json();
+      const [attendanceRes, settingsRes] = await Promise.all([
+        fetch(`/api/attendance?action=getOvertimeTotal&staffId=${staff.id}&year=${currentYear}&month=${months[currentMonthIndex]}`),
+        fetch('/api/settings')
+      ]);
+
+      const attendanceResult = await attendanceRes.json();
+      const settingsResult = await settingsRes.json();
 
       let otHours = '0';
-      if (result.success && result.data.totalOtHours > 0) {
-        otHours = result.data.totalOtHours.toFixed(2);
+      if (attendanceResult.success && attendanceResult.data.totalOtHours > 0) {
+        otHours = attendanceResult.data.totalOtHours.toFixed(2);
       }
       
       setSalaryInputs({ 
@@ -113,17 +121,26 @@ const Salary: React.FC = () => {
           recurExpense: '0' 
       });
 
+      if (settingsResult.success) {
+        setShopSettings(settingsResult.data);
+      } else {
+        throw new Error(settingsResult.error || "Failed to fetch shop settings.");
+      }
+
     } catch (error) {
-      console.error("Failed to fetch overtime hours:", error);
-      alert("Could not fetch overtime hours. Please enter them manually.");
-      setSalaryInputs({ otHours: '0', extraDays: '0', foodDeduction: '2500', recurExpense: '0' });
+      console.error("Failed to fetch initial salary data:", error);
+      alert("Could not fetch required data to process salary. Please check settings and try again.");
+      setIsModalOpen(false);
     } finally {
-      setIsFetchingOt(false);
+      setIsModalLoading(false);
     }
   };
   
   const handleProcessSalary = async () => {
-    if (!processingStaff) return;
+    if (!processingStaff || !shopSettings) {
+        alert("Settings data is missing. Cannot process salary.");
+        return;
+    }
     setButtonLoadingStates(prev => ({ ...prev, [processingStaff.id]: { processing: true } }));
     setIsModalOpen(false);
 
@@ -139,10 +156,11 @@ const Salary: React.FC = () => {
     };
     
     const baseSalary = Number(processingStaff.salary) || 0;
-    const otRate = Number(processingStaff.otRatePerHour);
-    const perDiem = baseSalary / 30;
+    const otRate = shopSettings.defaultOtRate; 
+    const extraDayRate = shopSettings.defaultExtraDayRate;
+
     const otAmount = inputs.otHours * otRate;
-    const extraDayPay = inputs.extraDays * perDiem;
+    const extraDayPay = inputs.extraDays * extraDayRate;
     const totalEarnings = baseSalary + otAmount + extraDayPay;
     const totalDeductions = inputs.foodDeduction + inputs.recurExpense + advanceToDeduct;
     const netSalary = totalEarnings - totalDeductions;
@@ -187,9 +205,14 @@ const Salary: React.FC = () => {
   const totalSalaryExpense = useMemo(() => currentMonthSalaryRecords.reduce((total, r) => total + (r.netSalary ?? 0), 0), [currentMonthSalaryRecords]);
   const processedSalariesCount = currentMonthSalaryRecords.length;
   const pendingPaymentsCount = currentMonthSalaryRecords.filter(r => !r.isPaid).length;
-  const paidSalaryRecords = useMemo(() => (salaryRecords as SalaryRecordType[]).filter(r => r.isPaid), [salaryRecords]);
+  const paidSalaryRecords = useMemo(() => (salaryRecords as SalaryRecordType[]).filter(r => r.isPaid).sort((a,b) => parseISO(b.paidDate!).getTime() - parseISO(a.paidDate!).getTime()), [salaryRecords]);
 
   const handleExportPDF = () => {
+    if (currentMonthSalaryRecords.length === 0) {
+        alert("No processed salaries to export for this month.");
+        return;
+    }
+
     setIsExporting(true);
     try {
         const doc = new jsPDF();
@@ -211,22 +234,44 @@ const Salary: React.FC = () => {
         doc.text(`- Total Salary Expense (Processed): Rs. ${totalSalaryExpense.toLocaleString(undefined, {maximumFractionDigits: 2})}`, 14, 47);
         doc.text(`- Processed Salaries: ${processedSalariesCount} / ${filteredStaff.length}`, 14, 52);
         doc.text(`- Pending Payments: ${pendingPaymentsCount}`, 14, 57);
+        
         const tableColumn = ["#", "Staff Name", "Position", "Base (Rs.)", "Earnings (OT/Extra)", "Deductions", "Advance", "Net (Rs.)", "Status", "Paid Date"];
         const tableRows: (string | number)[][] = [];
-        let index = 1;
-        filteredStaff.forEach((staff) => {
-            const record = getSalaryRecord(staff.id);
-            if (record) {
-                const totalEarnings = (record.otAmount ?? 0) + (record.extraDayPay ?? 0);
-                const totalDeductions = (record.foodDeduction ?? 0) + (record.recurExpense ?? 0);
-                tableRows.push([
-                    index++, staff.name, staff.position, record.baseSalary.toLocaleString(),
-                    totalEarnings.toLocaleString(), totalDeductions.toLocaleString(), record.advanceDeducted.toLocaleString(),
-                    record.netSalary.toLocaleString(), record.isPaid ? 'Paid' : 'Pending',
-                    record.isPaid && record.paidDate ? format(parseISO(record.paidDate), 'dd/MM/yy') : '-'
-                ]);
+        
+        currentMonthSalaryRecords.forEach((record, index) => {
+            const staffName = record.staffDetails?.name || 'N/A';
+            const staffPosition = record.staffDetails?.position || 'N/A';
+            
+            const totalEarnings = ((record.otAmount || 0) + (record.extraDayPay || 0)).toLocaleString(undefined, {maximumFractionDigits: 2});
+            const totalDeductions = ((record.foodDeduction || 0) + (record.recurExpense || 0)).toLocaleString();
+            const baseSalaryStr = (record.baseSalary || 0).toLocaleString();
+            const advanceDeductedStr = (record.advanceDeducted || 0).toLocaleString();
+            const netSalaryStr = (record.netSalary || 0).toLocaleString(undefined, {maximumFractionDigits: 2});
+
+            let paidDateStr = '-';
+            if (record.isPaid && record.paidDate) {
+              try {
+                paidDateStr = format(parseISO(record.paidDate), 'dd/MM/yy');
+              } catch (e) {
+                console.error(`Invalid date format for record ${record.id}:`, record.paidDate);
+                paidDateStr = 'Invalid Date';
+              }
             }
+
+            tableRows.push([
+                index + 1, 
+                staffName, 
+                staffPosition, 
+                baseSalaryStr,
+                totalEarnings,
+                totalDeductions, 
+                advanceDeductedStr,
+                netSalaryStr, 
+                record.isPaid ? 'Paid' : 'Pending',
+                paidDateStr
+            ]);
         });
+
         autoTable(doc, { 
             head: [tableColumn], body: tableRows, startY: 65, theme: 'grid',
             headStyles: { fillColor: [29, 112, 184], textColor: [255, 255, 255], fontStyle: 'bold' },
@@ -234,6 +279,9 @@ const Salary: React.FC = () => {
             columnStyles: { 0: { cellWidth: 8 } }
         });
         doc.save(`Salary_Report_${months[currentMonthIndex]}_${currentYear}.pdf`);
+    } catch (error) {
+      console.error("PDF Export failed:", error);
+      alert("An error occurred while generating the PDF. Check the console for details.")
     } finally {
         setIsExporting(false);
     }
@@ -245,37 +293,37 @@ const Salary: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-60 z-40 flex justify-center items-center p-4">
             <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg z-50">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-xl font-semibold">Process Salary: {processingStaff.name}</h3>
-                  <Button variant="ghost" className="p-1 h-8 w-8" onClick={() => setIsModalOpen(false)}><X size={20}/></Button>
+                  <h3 className="text-xl font-semibold text-gray-900">Process Salary: {processingStaff.name}</h3>
+                  <Button variant="ghost" size="sm" onClick={() => setIsModalOpen(false)} icon={<X size={20}/>}/>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <h4 className="col-span-full font-semibold text-gray-800 border-b pb-1">Earnings</h4>
+                    <h4 className="col-span-full font-semibold text-gray-900 border-b pb-1">Earnings</h4>
                     
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">OT Hours</label>
+                        <label className="block text-sm font-medium text-gray-900">OT Hours</label>
                         <div className="relative">
                             <input 
                                 type="number" 
                                 value={salaryInputs.otHours} 
                                 onChange={e => setSalaryInputs({...salaryInputs, otHours: e.target.value})}
-                                disabled={isFetchingOt}
-                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                                disabled={isModalLoading}
+                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black text-gray-900"
                             />
-                            {isFetchingOt && <span className="absolute right-2 top-3 text-xs text-gray-500">Fetching...</span>}
+                            {isModalLoading && <span className="absolute right-2 top-3 text-xs text-gray-500">Fetching...</span>}
                         </div>
                         <p className="text-xs text-gray-500 mt-1">Auto-calculated from attendance.</p>
                     </div>
                     
-                    <div><label className="block text-sm font-medium text-gray-700">Extra Days</label><input type="number" value={salaryInputs.extraDays} onChange={e => setSalaryInputs({...salaryInputs, extraDays: e.target.value})} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"/></div>
+                    <div><label className="block text-sm font-medium text-gray-900">Extra Days</label><input type="number" value={salaryInputs.extraDays} onChange={e => setSalaryInputs({...salaryInputs, extraDays: e.target.value})} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black text-gray-900"/></div>
                     
-                    <h4 className="col-span-full font-semibold text-gray-800 border-b pb-1 mt-4">Deductions</h4>
-                    <div><label className="block text-sm font-medium text-gray-700">Food Money (₹)</label><input type="number" value={salaryInputs.foodDeduction} onChange={e => setSalaryInputs({...salaryInputs, foodDeduction: e.target.value})} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"/></div>
-                    <div><label className="block text-sm font-medium text-gray-700">Recurring Expense (₹)</label><input type="number" value={salaryInputs.recurExpense} onChange={e => setSalaryInputs({...salaryInputs, recurExpense: e.target.value})} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"/></div>
+                    <h4 className="col-span-full font-semibold text-gray-900 border-b pb-1 mt-4">Deductions</h4>
+                    <div><label className="block text-sm font-medium text-gray-900">Food Money (₹)</label><input type="number" value={salaryInputs.foodDeduction} onChange={e => setSalaryInputs({...salaryInputs, foodDeduction: e.target.value})} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black text-gray-900"/></div>
+                    <div><label className="block text-sm font-medium text-gray-900">Recurring Expense (₹)</label><input type="number" value={salaryInputs.recurExpense} onChange={e => setSalaryInputs({...salaryInputs, recurExpense: e.target.value})} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black text-gray-900"/></div>
                 </div>
                 <div className="mt-6 flex justify-end space-x-3">
-                  <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                  <Button onClick={handleProcessSalary} disabled={isFetchingOt} className="bg-purple-600 hover:bg-purple-700 text-white">
-                    {isFetchingOt ? 'Loading...' : 'Confirm & Process'}
+                  <Button variant="outline-danger" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+                  <Button variant="black" onClick={handleProcessSalary} isLoading={isModalLoading}>
+                    Confirm & Process
                   </Button>
                 </div>
             </div>
@@ -291,12 +339,13 @@ const Salary: React.FC = () => {
                     <span className="text-sm font-medium text-gray-700">{months[currentMonthIndex]} {currentYear}</span>
                 </div>
                 <Button 
+                    variant="black"
                     icon={<Download size={16}/>} 
                     onClick={handleExportPDF} 
-                    disabled={isExporting || loadingSalary || !filteredStaff.length}
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-semibold shadow-sm"
+                    isLoading={isExporting}
+                    disabled={loadingSalary || currentMonthSalaryRecords.length === 0}
                 >
-                    {isExporting ? 'Exporting...' : 'Export PDF'}
+                    Export PDF
                 </Button>
             </div>
         </div>
@@ -324,13 +373,13 @@ const Salary: React.FC = () => {
                 <div className="relative w-full md:w-auto">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <input type="text" placeholder="Search staff..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} 
-                        className="pl-10 pr-4 py-2 w-full md:w-80 border border-gray-300 rounded-lg text-gray-800 focus:outline-none focus:ring-1 focus:ring-purple-500" />
+                        className="pl-10 pr-4 py-2 w-full md:w-80 border border-gray-300 rounded-lg text-gray-800 focus:outline-none focus:ring-1 focus:ring-black" />
                 </div>
                 <div className="flex items-center gap-2">
-                    <select value={currentMonthIndex} onChange={e => setCurrentMonthIndex(Number(e.target.value))} className="px-4 py-2 border-2 border-purple-400 rounded-lg bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-purple-500">
+                    <select value={currentMonthIndex} onChange={e => setCurrentMonthIndex(Number(e.target.value))} className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-black">
                         {months.map((month, index) => <option key={month} value={index}>{month}</option>)}
                     </select>
-                    <select value={currentYear} onChange={e => setCurrentYear(Number(e.target.value))} className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-purple-500">
+                    <select value={currentYear} onChange={e => setCurrentYear(Number(e.target.value))} className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-black">
                         {years.map(year => <option key={year} value={year}>{year}</option>)}
                     </select>
                 </div>
@@ -361,23 +410,25 @@ const Salary: React.FC = () => {
                             <tr key={staff.id} className="hover:bg-gray-50">
                                 <td className="px-6 py-4 whitespace-nowrap"><div className="flex items-center"><img className="h-10 w-10 rounded-full object-cover" src={staff.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(staff.name)}&background=random`} alt={staff.name}/><div className="ml-4"><div className="text-sm font-medium text-gray-900">{staff.name}</div><div className="text-sm text-gray-500">{staff.position}</div></div></div></td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">₹{staff.salary.toLocaleString()}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">{record ? `+₹${(record.otAmount ?? 0).toLocaleString()}` : '—'}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">{record ? `+₹${(record.extraDayPay ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}` : '—'}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">{record ? `+₹${(record.otAmount ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—'}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">{record ? `+₹${(record.extraDayPay ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">{record ? `-₹${(record.foodDeduction ?? 0).toLocaleString()}` : '—'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">{record ? `-₹${(record.recurExpense ?? 0).toLocaleString()}` : '—'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">{record ? `-₹${(record.advanceDeducted ?? 0).toLocaleString()}` : '—'}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-bold">{record ? `₹${(record.netSalary ?? 0).toLocaleString()}` : '—'}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-bold">{record ? `₹${(record.netSalary ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     {record ? ( record.isPaid ? 
-                                        <span className="flex items-center gap-1.5 px-3 py-1 text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800"><CheckCircle size={14} className="text-green-700"/> Paid on {format(parseISO(record.paidDate!), 'dd/MM/yy')}</span> :
+                                        <span className="flex items-center gap-1.5 px-3 py-1 text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800"><CheckCircle size={14} className="text-green-700"/> Paid on {record.paidDate ? format(parseISO(record.paidDate), 'dd/MM/yy') : ''}</span> :
                                         <span className="flex items-center gap-1.5 px-3 py-1 text-xs leading-5 font-semibold rounded-full bg-amber-100 text-amber-900"><Clock size={14} className="text-amber-700"/> Pending</span>
                                     ) : (<span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Not Processed</span>)}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                                 {record ? (record.isPaid ? 
-                                    <Button size="sm" className="bg-green-600 text-white cursor-not-allowed" disabled icon={<CheckCircle size={14}/>}>Paid</Button> : 
-                                    <Button size="sm" onClick={() => handlePayNow(record)} disabled={isLoading} className="bg-purple-600 text-white hover:bg-purple-700">{isLoading ? 'Paying...':'Pay Now'}</Button>
-                                ) : (<Button size="sm" onClick={() => openProcessingModal(staff)} disabled={isLoading} className="bg-purple-600 text-white hover:bg-purple-700">{isLoading ? 'Processing...':'Process Salary'}</Button>)}
+                                    <Button variant="success" size="sm" disabled icon={<CheckCircle size={14}/>}>Paid</Button> : 
+                                    <Button variant="black" size="sm" onClick={() => handlePayNow(record)} isLoading={isLoading}>Pay Now</Button>
+                                ) : (
+                                    <Button variant="black" size="sm" onClick={() => openProcessingModal(staff)} isLoading={isLoading}>Process Salary</Button>
+                                )}
                                 </td>
                             </tr>
                             );
@@ -419,7 +470,7 @@ const Salary: React.FC = () => {
                                 )}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{record.month} {record.year}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 font-bold">₹{record.netSalary.toLocaleString()}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 font-bold">₹{record.netSalary.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                 {record.paidDate ? format(parseISO(record.paidDate), 'MMM d, yyyy') : 'N/A'}
                             </td>

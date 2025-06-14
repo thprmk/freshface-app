@@ -4,11 +4,9 @@ import React, { useState, FormEvent, ChangeEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Save, Upload, PlusCircle, XCircle } from 'lucide-react';
 
-// Assuming these types are correctly defined and exported from context or a shared types file
 import { useStaff, NewStaffPayload, PositionOption } from '../../../../context/StaffContext';
-import Button from '../../../../components/ui/Button'; // Assuming Button.tsx now supports variant="ghost"
+import Button from '../../../../components/ui/Button'; // Ensure this path is correct!
 
-// Local form data structure
 interface StaffFormData {
   name: string;
   email: string;
@@ -17,18 +15,17 @@ interface StaffFormData {
   joinDate: string;
   salary: number;
   address: string;
-  image: string | null; // Match NewStaffPayload and StaffMember.image
+  image: string | null;
   aadharNumber: string;
 }
 
-// Replaced the women's photo with a generic SVG placeholder icon
 const DEFAULT_STAFF_IMAGE = `data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23d1d5db'%3e%3cpath fill-rule='evenodd' d='M18.685 19.097A9.723 9.723 0 0021.75 12c0-5.385-4.365-9.75-9.75-9.75S2.25 6.615 2.25 12a9.723 9.723 0 003.065 7.097A9.716 9.716 0 0012 21.75a9.716 9.716 0 006.685-2.653zm-12.54-1.285A7.486 7.486 0 0112 15a7.486 7.486 0 015.855 2.812A8.224 8.224 0 0112 20.25a8.224 8.224 0 01-5.855-2.438zM15.75 9a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z' clip-rule='evenodd' /%3e%3c/svg%3e`;
 
 const AddStaffPage: React.FC = () => {
   const router = useRouter();
   const {
     addStaffMember,
-    positionOptions: contextPositionOptions = [], // Default to empty array if undefined
+    positionOptions: contextPositionOptions = [],
     addPositionOption
   } = useStaff();
 
@@ -40,14 +37,12 @@ const AddStaffPage: React.FC = () => {
     joinDate: new Date().toISOString().split('T')[0],
     salary: 0,
     address: '',
-    image: DEFAULT_STAFF_IMAGE, // Initial image placeholder
+    image: DEFAULT_STAFF_IMAGE,
     aadharNumber: '',
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Local state for position options, initialized from context
   const [positionOptions, setPositionOptions] = useState<PositionOption[]>(contextPositionOptions);
   const [showAddPositionForm, setShowAddPositionForm] = useState(false);
   const [newPositionName, setNewPositionName] = useState("");
@@ -55,7 +50,6 @@ const AddStaffPage: React.FC = () => {
 
   useEffect(() => {
     setPositionOptions(contextPositionOptions);
-    // Set default position if not already set and options are available
     if (!formData.position && contextPositionOptions.length > 0) {
         const firstSelectableOption = contextPositionOptions.find(opt => opt.value !== "")?.value || contextPositionOptions[0]?.value;
         if (firstSelectableOption) {
@@ -79,7 +73,7 @@ const AddStaffPage: React.FC = () => {
       const file = e.target.files[0];
       if (file.size > 2 * 1024 * 1024) { // 2MB limit
           setError("Image size should not exceed 2MB.");
-          e.target.value = ''; // Clear the input
+          e.target.value = '';
           return;
       }
       const reader = new FileReader();
@@ -236,22 +230,21 @@ const AddStaffPage: React.FC = () => {
 
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Full Name*</label>
-            <input id="name" name="name" type="text" required value={formData.name} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100" disabled={isSubmitting}/>
+            <input id="name" name="name" type="text" required value={formData.name} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black disabled:bg-gray-100" disabled={isSubmitting}/>
           </div>
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email Address*</label>
-            <input id="email" name="email" type="email" required value={formData.email} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100" disabled={isSubmitting}/>
+            <input id="email" name="email" type="email" required value={formData.email} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black disabled:bg-gray-100" disabled={isSubmitting}/>
           </div>
           <div>
             <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">Phone Number*</label>
-            <input id="phone" name="phone" type="tel" required value={formData.phone} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100" disabled={isSubmitting}/>
+            <input id="phone" name="phone" type="tel" required value={formData.phone} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black disabled:bg-gray-100" disabled={isSubmitting}/>
           </div>
           <div>
             <label htmlFor="aadharNumber" className="block text-sm font-medium text-gray-700 mb-1">Aadhar Number</label>
-            <input id="aadharNumber" name="aadharNumber" type="text" pattern="\d{12}" title="Aadhar number must be 12 digits" maxLength={12} value={formData.aadharNumber} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100" disabled={isSubmitting}/>
+            <input id="aadharNumber" name="aadharNumber" type="text" pattern="\d{12}" title="Aadhar number must be 12 digits" maxLength={12} value={formData.aadharNumber} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black disabled:bg-gray-100" disabled={isSubmitting}/>
           </div>
 
-          {/* CORRECTED POSITION FIELD SECTION */}
           <div>
             <label htmlFor="position" className="block text-sm font-medium text-gray-700 mb-1">Position*</label>
             <div className="flex items-center space-x-2">
@@ -261,7 +254,7 @@ const AddStaffPage: React.FC = () => {
                 required
                 value={formData.position}
                 onChange={handleInputChange}
-                className="flex-grow w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100"
+                className="flex-grow w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black disabled:bg-gray-100"
                 disabled={isSubmitting || showAddPositionForm}
               >
                 {positionOptions.map(option => (
@@ -278,7 +271,7 @@ const AddStaffPage: React.FC = () => {
                   onClick={() => setShowAddPositionForm(true)}
                   disabled={isSubmitting}
                   title="Add New Position"
-                  className="p-2 text-gray-600 hover:text-purple-600"
+                  className="p-2 text-gray-600 hover:text-black"
                 />
               )}
             </div>
@@ -295,14 +288,15 @@ const AddStaffPage: React.FC = () => {
                         if(newPositionError) setNewPositionError(null);
                     }}
                     placeholder="Enter position name"
-                    className="flex-grow w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm text-black focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
+                    className="flex-grow w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black"
                     disabled={isSubmitting}
                   />
                   <Button
                     type="button"
+                    variant="primary"
+                    size="sm"
                     onClick={handleAddNewPosition}
                     disabled={isSubmitting || !newPositionName.trim()}
-                    className="text-sm py-1.5 px-3 bg-purple-500 text-white hover:bg-purple-600 rounded-md"
                   >
                     Add
                   </Button>
@@ -324,27 +318,25 @@ const AddStaffPage: React.FC = () => {
               </div>
             )}
           </div>
-          {/* END CORRECTED POSITION FIELD SECTION */}
-
 
           <div>
             <label htmlFor="joinDate" className="block text-sm font-medium text-gray-700 mb-1">Join Date*</label>
-            <input id="joinDate" name="joinDate" type="date" required value={formData.joinDate} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100" disabled={isSubmitting}/>
+            <input id="joinDate" name="joinDate" type="date" required value={formData.joinDate} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black disabled:bg-gray-100" disabled={isSubmitting}/>
           </div>
           <div>
             <label htmlFor="salary" className="block text-sm font-medium text-gray-700 mb-1">Monthly Salary (₹)*</label>
-            <input id="salary" name="salary" type="number" required min="0" step="any" value={formData.salary} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100" disabled={isSubmitting}/>
+            <input id="salary" name="salary" type="number" required min="0" step="any" value={formData.salary} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black disabled:bg-gray-100" disabled={isSubmitting}/>
           </div>
           <div className="md:col-span-2">
             <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-            <textarea id="address" name="address" rows={3} value={formData.address} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100" disabled={isSubmitting}></textarea>
+            <textarea id="address" name="address" rows={3} value={formData.address} onChange={handleInputChange} className="w-full rounded-md border border-gray-300 px-3 py-2 text-black focus:outline-none focus:ring-1 focus:ring-black focus:border-black disabled:bg-gray-100" disabled={isSubmitting}></textarea>
           </div>
         </div>
 
         <div className="mt-8 flex justify-end space-x-3">
           <Button
             type="button"
-            variant="outline"
+            variant="outline-danger"
             onClick={() => router.back()}
             disabled={isSubmitting}
           >
@@ -352,6 +344,7 @@ const AddStaffPage: React.FC = () => {
           </Button>
           <Button
             type="submit"
+            variant="black"
             icon={<Save size={16} />}
             disabled={isSubmitting}
             isLoading={isSubmitting}

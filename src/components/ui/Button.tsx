@@ -1,11 +1,12 @@
 // src/components/ui/Button.tsx
 import React, { ButtonHTMLAttributes, ReactNode } from 'react';
-import { Loader2 } from 'lucide-react'; // Or your preferred loading spinner icon
-import cn from 'classnames'; // Optional: for cleaner class concatenation, install with `npm install classnames` or `yarn add classnames`
+import { Loader2 } from 'lucide-react'; 
+import cn from 'classnames'; 
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'warning' | 'outline' | 'ghost';
-  size?: 'xs' | 'sm' | 'md' | 'lg'; // <<<< 1. ADDED "xs" HERE
+  // 1. ADD 'outline-danger' to the list of available variants
+  variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'warning' | 'outline' | 'ghost' | 'black' | 'outline-danger';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   icon?: ReactNode;
   fullWidth?: boolean;
   isLoading?: boolean;
@@ -34,10 +35,14 @@ const Button: React.FC<ButtonProps> = ({
     warning: 'bg-amber-500 text-white hover:bg-amber-600 focus:ring-amber-500',
     outline: 'bg-transparent border border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-gray-500',
     ghost: 'bg-transparent text-gray-700 hover:bg-gray-100 focus:ring-purple-500 focus:bg-gray-100',
+    black: 'bg-black text-white hover:bg-gray-800 focus:ring-gray-600',
+    
+    // 2. ADD the new 'outline-danger' variant styles here
+    'outline-danger': 'bg-transparent border border-red-500 text-red-500 hover:bg-red-50 focus:ring-red-500',
   };
 
   const sizeClasses = {
-    xs: 'px-2 py-1 text-xs',      // <<<< 2. ADDED STYLES FOR "xs" (Adjust as needed)
+    xs: 'px-2 py-1 text-xs',
     sm: 'px-3 py-1.5 text-sm',
     md: 'px-4 py-2 text-base',
     lg: 'px-5 py-2.5 text-lg',
@@ -46,7 +51,7 @@ const Button: React.FC<ButtonProps> = ({
   let effectiveSizeClasses = sizeClasses[size];
   if (variant === 'ghost' && icon && !children) {
     switch (size) {
-        case 'xs': effectiveSizeClasses = 'p-1 text-xs'; break; // <<<< 3. ADDED ghost icon-only style for "xs"
+        case 'xs': effectiveSizeClasses = 'p-1 text-xs'; break;
         case 'sm': effectiveSizeClasses = 'p-1.5 text-sm'; break;
         case 'md': effectiveSizeClasses = 'p-2 text-base'; break;
         case 'lg': effectiveSizeClasses = 'p-2.5 text-lg'; break;
@@ -57,7 +62,6 @@ const Button: React.FC<ButtonProps> = ({
   const widthClass = fullWidth ? 'w-full' : '';
   const disabledClasses = isDisabledEffective ? 'opacity-75 cursor-not-allowed' : '';
 
-  // Using cn (classnames) for cleaner concatenation, but string template is also fine
   const finalClassName = cn(
     baseClasses,
     variantClasses[variant],

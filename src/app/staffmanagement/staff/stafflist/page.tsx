@@ -8,7 +8,6 @@ import {
   Plus, Edit, Trash, MoreVertical, Search,
   Eye, Filter, RefreshCw
 } from 'lucide-react';
-// Ensure StaffMember type is imported correctly
 import { useStaff, StaffMember } from '../../../../context/StaffContext';
 import Button from '../../../../components/ui/Button';
 
@@ -27,7 +26,6 @@ const StaffList: React.FC = () => {
   const [showDropdownId, setShowDropdownId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
-  // State for filter functionality
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filters, setFilters] = useState({ position: '', status: '' });
   const [tempFilters, setTempFilters] = useState({ position: '', status: '' });
@@ -40,7 +38,6 @@ const StaffList: React.FC = () => {
     }
   }, [fetchStaffMembers]);
 
-  // Close filter dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
@@ -53,12 +50,11 @@ const StaffList: React.FC = () => {
     };
   }, []);
 
-  // Memoize unique positions for the filter dropdown
   const positions = useMemo(() => {
     if (!staffMembers) return [];
     const allPositions = staffMembers
       .map((s) => s.position)
-      .filter((p): p is string => !!p); // Type guard to filter out null/undefined
+      .filter((p): p is string => !!p);
     return [...new Set(allPositions)].sort();
   }, [staffMembers]);
 
@@ -66,13 +62,11 @@ const StaffList: React.FC = () => {
   const filteredStaff = useMemo(() => {
     return (staffMembers || [])
       .filter((staff) => {
-        // Search filter
         const searchMatch =
           (staff.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
           (staff.position?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
           (staff.email?.toLowerCase() || "").includes(searchTerm.toLowerCase());
 
-        // Dropdown filters
         const statusMatch = filters.status ? staff.status === filters.status : true;
         const positionMatch = filters.position ? staff.position === filters.position : true;
 
@@ -93,7 +87,7 @@ const StaffList: React.FC = () => {
       } finally {
         setShowDropdownId(null);
         setIsDeleting(null);
-        if (fetchStaffMembers) fetchStaffMembers(); // Optionally refetch to ensure consistency
+        if (fetchStaffMembers) fetchStaffMembers();
       }
     }
   };
@@ -102,9 +96,7 @@ const StaffList: React.FC = () => {
     setShowDropdownId(prevId => (prevId === id ? null : id));
   };
   
-  // Handlers for the filter popover
   const toggleFilter = () => {
-    // When opening the filter, sync tempFilters with the currently active filters
     if (!isFilterOpen) {
       setTempFilters(filters);
     }
@@ -135,7 +127,9 @@ const StaffList: React.FC = () => {
           >
             {loadingStaff ? "Refreshing..." : "Refresh"}
           </Button>
+          {/* --- CHANGE: Button variant is now "black" --- */}
           <Button
+            variant="black"
             icon={<Plus size={16} />}
             onClick={() => router.push('/staffmanagement/staff/add')}
           >
@@ -156,10 +150,11 @@ const StaffList: React.FC = () => {
           <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
             <Search className="w-5 h-5 text-gray-400" />
           </div>
+          {/* --- CHANGE: Focus ring color is now black --- */}
           <input
             type="text"
             placeholder="Search by name, position, email..."
-            className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 text-gray-900 placeholder:text-gray-400"
+            className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-black focus:border-black text-gray-900 placeholder:text-gray-400"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -177,44 +172,44 @@ const StaffList: React.FC = () => {
             <div className="absolute top-full right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 z-30 p-4 space-y-4" onClick={(e) => e.stopPropagation()}>
                 <h3 className="text-md font-semibold text-gray-800 border-b pb-2">Filter Options</h3>
                 
-                {/* Position Filter */}
                 <div>
                     <label htmlFor="position-filter" className="block text-sm font-medium text-gray-700 mb-1">Position</label>
+                    {/* --- CHANGE: Focus ring color is now black --- */}
                     <select
                         id="position-filter"
                         name="position"
                         value={tempFilters.position}
                         onChange={(e) => setTempFilters({...tempFilters, position: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm text-gray-900"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black sm:text-sm text-gray-900"
                     >
                         <option value="">All Positions</option>
                         {positions.map(pos => <option key={pos} value={pos}>{pos}</option>)}
                     </select>
                 </div>
 
-                {/* Status Filter */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                    {/* --- CHANGE: Focus ring color is now black --- */}
                     <fieldset className="flex items-center space-x-4">
                         <div className="flex items-center">
-                            <input id="status-all" name="status" type="radio" value="" checked={tempFilters.status === ''} onChange={(e) => setTempFilters({...tempFilters, status: e.target.value})} className="h-4 w-4 text-purple-600 border-gray-300 focus:ring-purple-500" />
+                            <input id="status-all" name="status" type="radio" value="" checked={tempFilters.status === ''} onChange={(e) => setTempFilters({...tempFilters, status: e.target.value})} className="h-4 w-4 text-black border-gray-300 focus:ring-black" />
                             <label htmlFor="status-all" className="ml-2 block text-sm text-gray-900">All</label>
                         </div>
                         <div className="flex items-center">
-                            <input id="status-active" name="status" type="radio" value="active" checked={tempFilters.status === 'active'} onChange={(e) => setTempFilters({...tempFilters, status: e.target.value})} className="h-4 w-4 text-purple-600 border-gray-300 focus:ring-purple-500" />
+                            <input id="status-active" name="status" type="radio" value="active" checked={tempFilters.status === 'active'} onChange={(e) => setTempFilters({...tempFilters, status: e.target.value})} className="h-4 w-4 text-black border-gray-300 focus:ring-black" />
                             <label htmlFor="status-active" className="ml-2 block text-sm text-gray-900">Active</label>
                         </div>
                         <div className="flex items-center">
-                            <input id="status-inactive" name="status" type="radio" value="inactive" checked={tempFilters.status === 'inactive'} onChange={(e) => setTempFilters({...tempFilters, status: e.target.value})} className="h-4 w-4 text-purple-600 border-gray-300 focus:ring-purple-500" />
+                            <input id="status-inactive" name="status" type="radio" value="inactive" checked={tempFilters.status === 'inactive'} onChange={(e) => setTempFilters({...tempFilters, status: e.target.value})} className="h-4 w-4 text-black border-gray-300 focus:ring-black" />
                             <label htmlFor="status-inactive" className="ml-2 block text-sm text-gray-900">Inactive</label>
                         </div>
                     </fieldset>
                 </div>
 
-                {/* Action Buttons */}
                 <div className="flex justify-end space-x-2 pt-3 border-t border-gray-200">
                     <Button variant="outline" onClick={handleResetFilters}>Reset</Button>
-                    <Button onClick={handleApplyFilters}>Apply</Button>
+                    {/* --- CHANGE: Apply button variant is now "black" --- */}
+                    <Button variant="black" onClick={handleApplyFilters}>Apply</Button>
                 </div>
             </div>
           )}
@@ -274,9 +269,10 @@ const StaffList: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="relative inline-block text-left">
+                        {/* --- CHANGE: Focus ring color is now black --- */}
                         <button
                           onClick={() => toggleDropdown(staff.id)}
-                          className="text-gray-500 hover:text-purple-600 p-1.5 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                          className="text-gray-500 hover:text-black p-1.5 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black"
                           aria-haspopup="true"
                           aria-expanded={showDropdownId === staff.id}
                         >
